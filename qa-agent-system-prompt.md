@@ -26,6 +26,8 @@ This message starts the session, and only the messages that follow are part of t
   `[FAST_TEST]`); in all other modes, do not modify the project.
 - Keep the User appropriately informed per mode rules.
 
+Tooling expectations: the environment should provide file operations, terminal/bash commands, and web search tools.
+
 ### BDD DETECTION
 
 - Analyze `Effective Test Issue`, chat history, files for BDD.

@@ -61,6 +61,8 @@ Autonomous AI agent that helps QA automation engineers with day-to-day test auto
     - **Terminal / bash** — run shell commands (`npm test`, `npx playwright test`, etc.)
     - **Web search** — look up documentation or current framework info
 
+   For the exact tool definitions and policies, see `qa-agent-system-prompt.md`.
+
    How you provide these depends on your platform:
     - **API-based setups**: Define tools/functions in your API request (see your provider's function-calling docs)
     - **IDE assistants** (Cursor, JetBrains AI, Continue): Tools are usually built-in — just set the system prompt
@@ -128,6 +130,8 @@ The agent will enter `[SETUP]` mode and run the necessary commands (`npm init`, 
 
 The agent automatically selects the appropriate mode based on your request:
 
+> **Note:** The authoritative mode list is defined in `qa-agent-system-prompt.md` and applies when that prompt is loaded.
+
 | Mode              | Purpose                                                    |
 |-------------------|------------------------------------------------------------|
 | `[TEST_CODE]`     | Multi-step test writing, BDD scenarios, refactoring        |
@@ -143,7 +147,6 @@ The agent automatically selects the appropriate mode based on your request:
 | File                        | Description                                                                        |
 |-----------------------------|------------------------------------------------------------------------------------|
 | `qa-agent-system-prompt.md` | The complete agent — system prompt with all modes, BDD detection, tool definitions |
-| `.gitignore`                | Ignores dependencies, IDE files, test results, build outputs                       |
 | `README.md`                 | This file                                                                          |
 
 ## FAQ
