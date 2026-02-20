@@ -360,6 +360,10 @@ pub struct App {
     pub conv_rect: Rect,
     /// Last computed max_scroll for the conversation panel — used for scrollbar click hit-testing.
     pub conv_max_scroll: u16,
+    /// Geometry of the message input panel — updated every draw, used for input scrollbar hit-testing.
+    pub input_rect: Rect,
+    /// Last computed max_scroll for the message input panel — used for input scrollbar click hit-testing.
+    pub input_max_scroll_stored: u16,
     /// Mouse selection: start content line index (scroll-independent)
     pub sel_start: Option<usize>,
     /// Mouse selection: end content line index (scroll-independent)
@@ -415,6 +419,8 @@ impl App {
             cancel_token: CancellationToken::new(),
             conv_rect: Rect::default(),
             conv_max_scroll: 0,
+            input_rect: Rect::default(),
+            input_max_scroll_stored: 0,
             sel_start: None,
             sel_end: None,
             input_scroll: 0,
@@ -544,10 +550,24 @@ async fn event_loop(
                                 app.scroll_offset = app.scroll_offset.saturating_add(3);
                             }
                         }
-                        // Scrollbar click or drag — hit-test against the right edge of conv_rect
+                        // Scrollbar click or drag — hit-test against the right edge of conv_rect or input_rect
                         // Also track mouse selection inside the conversation area
                         MouseEventKind::Down(_) => {
                             if app.screen == Screen::Chat {
+                                // Input scrollbar hit-test
+                                let ir = app.input_rect;
+                                let input_scrollbar_col = ir.x + ir.width.saturating_sub(1);
+                                if mouse.column == input_scrollbar_col && ir.height > 2
+                                    && mouse.row >= ir.y && mouse.row < ir.y + ir.height
+                                    && app.input_max_scroll_stored > 0 {
+                                    let track_top = ir.y + 1;
+                                    let track_bottom = ir.y + ir.height.saturating_sub(2);
+                                    let track_len = track_bottom.saturating_sub(track_top) as usize;
+                                    if track_len > 0 {
+                                        let ratio = (mouse.row.saturating_sub(track_top)) as f32 / track_len as f32;
+                                        app.input_scroll = (ratio * app.input_max_scroll_stored as f32).round() as u16;
+                                    }
+                                }
                                 let r = app.conv_rect;
                                 let scrollbar_col = r.x + r.width.saturating_sub(1);
                                 if mouse.column == scrollbar_col && r.height > 2 {
@@ -578,6 +598,20 @@ async fn event_loop(
                         }
                         MouseEventKind::Drag(_) => {
                             if app.screen == Screen::Chat {
+                                // Input scrollbar drag hit-test
+                                let ir = app.input_rect;
+                                let input_scrollbar_col = ir.x + ir.width.saturating_sub(1);
+                                if mouse.column == input_scrollbar_col && ir.height > 2
+                                    && mouse.row >= ir.y && mouse.row < ir.y + ir.height
+                                    && app.input_max_scroll_stored > 0 {
+                                    let track_top = ir.y + 1;
+                                    let track_bottom = ir.y + ir.height.saturating_sub(2);
+                                    let track_len = track_bottom.saturating_sub(track_top) as usize;
+                                    if track_len > 0 {
+                                        let ratio = (mouse.row.saturating_sub(track_top)) as f32 / track_len as f32;
+                                        app.input_scroll = (ratio * app.input_max_scroll_stored as f32).round() as u16;
+                                    }
+                                }
                                 let r = app.conv_rect;
                                 let scrollbar_col = r.x + r.width.saturating_sub(1);
                                 if mouse.column == scrollbar_col && r.height > 2 {
@@ -1862,6 +1896,9 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &mut App) {
         .wrap(Wrap { trim: false })
         .scroll((effective_input_scroll, 0));
     f.render_widget(input_widget, right_rows[1]);
+    // Store input rect and max_scroll for mouse hit-testing
+    app.input_rect = right_rows[1];
+    app.input_max_scroll_stored = input_max_scroll;
 
     // Input scrollbar
     if input_total_rows > input_inner_height {
