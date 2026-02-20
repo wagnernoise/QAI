@@ -5,14 +5,14 @@ pub use tui::{render_to_buffer, save_api_token, load_api_token, strip_model_tags
 use anyhow::{bail, Context, Result};
 use std::fs;
 use std::io::{self, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-pub fn read_prompt(prompt: &PathBuf) -> Result<String> {
+pub fn read_prompt(prompt: &Path) -> Result<String> {
     fs::read_to_string(prompt)
         .with_context(|| format!("Failed to read prompt at {}", prompt.display()))
 }
 
-pub fn info(prompt: &PathBuf) -> Result<()> {
+pub fn info(prompt: &Path) -> Result<()> {
     let prompt_exists = prompt.exists();
     println!("QAI CLI");
     println!("Prompt path: {}", prompt.display());
@@ -22,14 +22,14 @@ pub fn info(prompt: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-pub fn show(prompt: &PathBuf) -> Result<()> {
+pub fn show(prompt: &Path) -> Result<()> {
     let content = read_prompt(prompt)?;
     print!("{}", content);
     io::stdout().flush().ok();
     Ok(())
 }
 
-pub fn copy(prompt: &PathBuf, dest: PathBuf, force: bool) -> Result<()> {
+pub fn copy(prompt: &Path, dest: PathBuf, force: bool) -> Result<()> {
     if dest.exists() && !force {
         bail!(
             "Destination already exists. Use --force to overwrite: {}",
@@ -43,7 +43,7 @@ pub fn copy(prompt: &PathBuf, dest: PathBuf, force: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn validate(prompt: &PathBuf) -> Result<()> {
+pub fn validate(prompt: &Path) -> Result<()> {
     let content = read_prompt(prompt)?;
     let required = [
         "## ENVIRONMENT",
