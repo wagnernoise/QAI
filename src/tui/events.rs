@@ -16,6 +16,7 @@ use ratatui::{
 use crate::tui::state::{App, Screen, ChatFocus, MENU_ITEMS};
 use crate::tui::providers::Provider;
 use crate::tui::api::{save_api_token, fetch_ollama_models, stream_message, StreamRequest};
+use crate::agent::ReActAgent;
 use crate::tui::draw::draw;
 use crate::tui::input::{TextInput, handle_text_input_key};
 use crate::tui::util::strip_model_tags;
@@ -316,6 +317,14 @@ async fn handle_chat_key(
                 app.screen = Screen::Menu;
             }
         }
+        KeyCode::F(2) => {
+            app.agent_mode = !app.agent_mode;
+            app.status = if app.agent_mode {
+                "🤖 Agent Mode ON (ReAct loop) — F2 to toggle".to_string()
+            } else {
+                "💬 Chat Mode — F2 to enable Agent Mode".to_string()
+            };
+        }
         KeyCode::Tab => {
             let is_custom = app.selected_provider() == Provider::Custom;
             let is_ollama = app.selected_provider() == Provider::Ollama;
@@ -486,8 +495,19 @@ async fn handle_chat_key(
                     let history: Vec<(String, String)> = app.messages.clone();
                     let tx = stream_tx.clone();
                     let cancel = app.cancel_token.clone();
+                    let agent_mode = app.agent_mode;
                     tokio::spawn(async move {
-                        if let Err(e) = stream_message(StreamRequest {
+                        if agent_mode {
+                            let agent = ReActAgent::new(
+                                provider, token, custom_url, model, system_prompt,
+                            );
+                            // last message is the user task
+                            let task = history.last().map(|(_, c)| c.clone()).unwrap_or_default();
+                            if let Err(e) = agent.run(task, tx.clone()).await {
+                                let _ = tx.send(Some(format!("\n[Agent error: {e}]")));
+                                let _ = tx.send(None);
+                            }
+                        } else if let Err(e) = stream_message(StreamRequest {
                             provider, api_token: token, custom_url, model, system_prompt, history,
                             tx: tx.clone(), cancel,
                         }).await {

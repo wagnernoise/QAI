@@ -1,4 +1,5 @@
 pub mod tui;
+pub mod agent;
 
 pub use tui::{render_to_buffer, save_api_token, load_api_token, strip_model_tags, App, ChatFocus, Provider, Screen, TextInput};
 

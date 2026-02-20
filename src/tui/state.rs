@@ -81,6 +81,7 @@ pub struct App {
     pub input_scroll: u16,
     /// Inner width of the message input box — updated every draw, used for cursor navigation.
     pub input_inner_width: usize,
+    pub agent_mode: bool,  // true = route messages through ReActAgent
 }
 
 pub const MENU_ITEMS: &[&str] = &["Info", "Show Prompt", "Validate", "Tools", "Chat", "Quit"];
@@ -134,6 +135,7 @@ impl App {
             sel_end: None,
             input_scroll: 0,
             input_inner_width: 60,
+            agent_mode: false,
         }
     }
 

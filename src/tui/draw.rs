@@ -75,7 +75,11 @@ fn draw_footer(f: &mut Frame, area: Rect, app: &App) {
     let hint = match &app.screen {
         Screen::Menu => " ↑↓ Navigate   Enter Select   q Quit ",
         Screen::Show => " ↑↓/j/k Scroll   q/Esc Back ",
-        Screen::Chat => " Tab Next field   Enter Send   Esc Back ",
+        Screen::Chat => if app.agent_mode {
+            " Tab Next field   Enter Send   F2 Agent Mode ON 🤖   Esc Back "
+        } else {
+            " Tab Next field   Enter Send   F2 Agent Mode OFF   Esc Back "
+        },
         _ => " q/Esc Back ",
     };
     let footer = Paragraph::new(hint)
@@ -663,7 +667,11 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &mut App) {
 
     // Cursor hint
     let hint = Paragraph::new(Span::styled(
-        " Tab: cycle focus   ↑/↓: scroll/navigate   Enter: select/send   Shift+Enter or Ctrl+J: newline   End: auto-scroll   Esc: menu ",
+        if app.agent_mode {
+            " Tab: cycle focus   ↑/↓: scroll/navigate   Enter: send   Shift+Enter/Ctrl+J: newline   F2: 🤖 Agent Mode ON   Esc: menu "
+        } else {
+            " Tab: cycle focus   ↑/↓: scroll/navigate   Enter: send   Shift+Enter/Ctrl+J: newline   F2: Agent Mode   Esc: menu "
+        },
         Style::default().fg(Color::DarkGray),
     ));
     f.render_widget(hint, right_rows[2]);

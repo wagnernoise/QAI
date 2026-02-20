@@ -129,6 +129,43 @@ In the Chat screen you can connect to any supported LLM provider:
 
 The QA-Bot system prompt is automatically pre-loaded as the system message for every conversation.
 
+#### Agent Mode (ReAct loop)
+
+The Chat screen supports an optional **Agent Mode** that routes your messages through a
+[ReAct](https://arxiv.org/abs/2210.03629) (Reason → Act → Observe) loop instead of a plain
+chat completion.
+
+**How to enable:**
+- Press **F2** in the Chat screen to toggle Agent Mode on/off.
+- The footer bar shows `🤖 Agent Mode ON` when active.
+
+**How it works:**
+
+1. Your message is sent to the LLM with a ReAct system prompt.
+2. The LLM responds with one of three structured tags:
+   - `<think>…</think>` — the agent's reasoning step (shown as 💭 Thought)
+   - `<tool name="TOOL">input</tool>` — a tool call (shown as 🔧 Tool)
+   - `<answer>…</answer>` — the final answer (shown as ✅ Answer)
+3. Tool results are fed back as observations and the loop repeats until an answer is produced
+   or the step limit (10) is reached.
+
+**Built-in tools:**
+
+| Tool | Description |
+|---|---|
+| `read_file` | Read a local file by path |
+| `shell` | Run a shell command and return stdout/stderr |
+| `web_search` | Query DuckDuckGo instant-answer API |
+
+**Example conversation in Agent Mode:**
+```
+You: What Rust version is installed on this machine?
+🤖 💭 Thought: I should run rustc --version to check.
+🔧 Tool: `shell(rustc --version)`
+👁 Observation: rustc 1.85.0 (4d91de4e4 2025-02-17)
+✅ Answer: Rust 1.85.0 is installed.
+```
+
 #### CLI (non-TUI) mode
 
 Pass a subcommand or `--no-tui` to skip the TUI:
