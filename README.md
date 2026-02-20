@@ -5,11 +5,11 @@ testing frameworks.
 
 ## What Is This?
 
-QAI is a **prompt-based AI agent** — it is not a standalone application or CLI tool. The agent lives entirely in the
-file `qa-agent-system-prompt.md`, which you load as a system prompt into any LLM that supports tool-calling (
-function-calling). The LLM then behaves as **QA-Bot**, an autonomous QA automation assistant.
+QAI is a **prompt-based AI agent**. The agent lives in the file `qa-agent-system-prompt.md`, which you load as a system
+prompt into any LLM that supports tool-calling (function-calling). The LLM then behaves as **QA-Bot**, an autonomous QA
+automation assistant. An optional Rust CLI is included to manage, copy, and validate the prompt.
 
-No server, no build step, no runtime dependencies — just a system prompt and an LLM.
+No server and no runtime dependencies are required to use the prompt — just a system prompt and an LLM.
 
 ## QA-Bot
 
@@ -70,6 +70,82 @@ Autonomous AI agent that helps QA automation engineers with day-to-day test auto
       commands directly
 
 4. **Done.** Start chatting with the agent about your test automation tasks.
+
+### Optional CLI (Rust)
+
+Build and install the CLI:
+
+```bash
+cargo build --release
+sudo cp ./target/release/qai-cli /usr/local/bin/qai-cli
+```
+
+Run without installing:
+
+```bash
+cargo run -- --help
+```
+
+#### TUI mode (default)
+
+Running `qai-cli` without a subcommand launches the full-screen TUI:
+
+```bash
+qai-cli
+```
+
+The TUI provides a navigable menu with these screens:
+
+| Screen       | Description                                      |
+|--------------|--------------------------------------------------|
+| Info         | Prompt path, file size, version                  |
+| Show Prompt  | Scrollable view of the system prompt             |
+| Validate     | Check that required sections are present         |
+| Tools        | List expected tool categories                    |
+| Chat         | Send messages to an LLM via API                  |
+
+**Keyboard shortcuts:**
+
+| Key            | Action                        |
+|----------------|-------------------------------|
+| `↑` / `↓`      | Navigate menu                 |
+| `Enter`        | Select item                   |
+| `q` / `Esc`    | Go back / quit                |
+| `Tab`          | Next field (Chat screen)      |
+| `Shift+Tab`    | Previous field (Chat screen)  |
+| `j` / `k`      | Scroll up/down (Show screen)  |
+
+#### Chat screen — API token & model hookup
+
+In the Chat screen you can connect to any supported LLM provider:
+
+1. **Tab** to the **API Token** field and type your key.
+2. **Tab** to the **Provider** list and select one with `↑`/`↓`:
+   - `OpenAI (GPT-4o)` — uses `https://api.openai.com/v1/chat/completions`
+   - `Anthropic (Claude)` — uses `https://api.anthropic.com/v1/messages`
+   - `xAI (Grok)` — uses `https://api.x.ai/v1/chat/completions`
+   - `Custom endpoint` — enter any OpenAI-compatible URL
+3. **Tab** to the **Message** field, type your message, and press **Enter** to send.
+
+The QA-Bot system prompt is automatically pre-loaded as the system message for every conversation.
+
+#### CLI (non-TUI) mode
+
+Pass a subcommand or `--no-tui` to skip the TUI:
+
+```bash
+qai-cli info
+qai-cli show
+qai-cli copy ./qa-agent-system-prompt.md --force
+qai-cli validate
+qai-cli tools
+```
+
+Use `--prompt` to target a different prompt file:
+
+```bash
+qai-cli --prompt ./qa-agent-system-prompt.md validate
+```
 
 ## Usage
 
