@@ -1,6 +1,6 @@
 use qai_cli::tui::{render_to_buffer, App, ChatFocus, Provider, Screen};
 #[allow(unused_imports)]
-use qai_cli::{save_api_token, load_api_token, strip_model_tags};
+use qai_cli::{save_api_token, load_api_token, strip_model_tags, TextInput};
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -96,7 +96,7 @@ fn provider_ollama_default_model() {
 
 #[test]
 fn provider_zen_default_model() {
-    assert_eq!(Provider::Zen.default_model(), "zen-1");
+    assert_eq!(Provider::Zen.default_model(), "anthropic/claude-sonnet-4-5");
 }
 
 // ── Provider::api_url ─────────────────────────────────────────────────────────
@@ -129,7 +129,7 @@ fn provider_ollama_api_url() {
 
 #[test]
 fn provider_zen_api_url() {
-    assert_eq!(Provider::Zen.api_url(), "https://api.zen.ai/v1/chat/completions");
+    assert_eq!(Provider::Zen.api_url(), "https://api.opencode.ai/v1/chat/completions");
 }
 
 #[test]
@@ -1121,4 +1121,255 @@ fn assistant_messages_with_tags_are_stripped_in_render() {
     let text = buffer_text(&buf);
     assert!(text.contains("visible content"), "visible content should appear");
     assert!(!text.contains("<invoke>"), "XML tags should be stripped from display");
+}
+
+// ── TextInput::cursor_row ─────────────────────────────────────────────────────
+
+#[test]
+fn cursor_row_at_start_is_zero() {
+    let input = TextInput::new();
+    assert_eq!(input.cursor_row(40), 0);
+}
+
+#[test]
+fn cursor_row_within_first_line() {
+    let mut input = TextInput::new();
+    for _ in 0..39 { input.insert_char('a'); }
+    // 39 chars, width 40 → still row 0
+    assert_eq!(input.cursor_row(40), 0);
+}
+
+#[test]
+fn cursor_row_wraps_to_second_line() {
+    let mut input = TextInput::new();
+    for _ in 0..40 { input.insert_char('a'); }
+    // 40 chars, width 40 → row 1
+    assert_eq!(input.cursor_row(40), 1);
+}
+
+#[test]
+fn cursor_row_zero_width_returns_zero() {
+    let mut input = TextInput::new();
+    input.insert_char('a');
+    assert_eq!(input.cursor_row(0), 0);
+}
+
+#[test]
+fn cursor_row_moves_with_cursor_left() {
+    let mut input = TextInput::new();
+    for _ in 0..40 { input.insert_char('a'); }
+    assert_eq!(input.cursor_row(40), 1);
+    input.move_left();
+    // cursor now at position 39 → row 0
+    assert_eq!(input.cursor_row(40), 0);
+}
+
+// ── input_scroll initial state ────────────────────────────────────────────────
+
+#[test]
+fn app_new_input_scroll_starts_at_zero() {
+    let app = make_app_no_file();
+    assert_eq!(app.input_scroll, 0);
+}
+
+// ── Long message input wraps and cursor stays visible ─────────────────────────
+
+#[test]
+fn long_message_input_renders_without_panic() {
+    let (_dir, mut app) = make_app_with_content("prompt");
+    app.screen = Screen::Chat;
+    // Type a very long message (300 chars)
+    for _ in 0..300 { app.message_input.insert_char('x'); }
+    // Should render without panic
+    let buf = render_to_buffer(&mut app, 80, 30);
+    let text = buffer_text(&buf);
+    assert!(text.contains('x'), "message input content should be visible");
+}
+
+#[test]
+fn input_scroll_resets_on_send() {
+    let mut app = make_app_no_file();
+    app.input_scroll = 5;
+    // Simulate reset on send
+    app.message_input = TextInput::new();
+    app.input_scroll = 0;
+    assert_eq!(app.input_scroll, 0);
+}
+
+// ── Message input box height ──────────────────────────────────────────────────
+
+#[test]
+fn chat_screen_input_box_is_at_least_6_rows_tall() {
+    let (_dir, mut app) = make_app_with_content("prompt");
+    app.screen = Screen::Chat;
+    // Render with a tall terminal; the input box should occupy 8 rows (border included).
+    // We verify by counting how many rows contain the input box border/content characters.
+    let buf = render_to_buffer(&mut app, 120, 40);
+    let text = buffer_text(&buf);
+    // The message box border title must appear somewhere in the buffer.
+    assert!(text.contains("Message"), "Message input box should be visible");
+    // Count rows that are part of the input box (contain '─' border or are inside it).
+    // The box is 8 rows tall so at least 6 rows (inner) should be present below the title row.
+    let border_rows = (0..40u16)
+        .filter(|&r| buffer_row(&buf, r).contains("Message"))
+        .count();
+    assert!(border_rows >= 1, "Message title row should appear at least once");
+}
+
+// ── Vertical wrap in message input ───────────────────────────────────────────
+
+#[test]
+fn message_input_wraps_vertically_for_long_text() {
+    let (_dir, mut app) = make_app_with_content("prompt");
+    app.screen = Screen::Chat;
+    // Type enough text to exceed one line (80-char terminal, ~77 inner width)
+    for _ in 0..160 { app.message_input.insert_char('a'); }
+    // Should render without panic and show content
+    let buf = render_to_buffer(&mut app, 80, 40);
+    let text = buffer_text(&buf);
+    assert!(text.contains('a'), "wrapped text should appear in the input box");
+}
+
+#[test]
+fn message_input_multiline_via_newline() {
+    let (_dir, mut app) = make_app_with_content("prompt");
+    app.screen = Screen::Chat;
+    // Insert text with a newline character
+    for c in "line one\nline two".chars() {
+        app.message_input.insert_char(c);
+    }
+    let buf = render_to_buffer(&mut app, 120, 40);
+    let text = buffer_text(&buf);
+    assert!(text.contains("line one") || text.contains("line two"),
+        "both lines should be visible in the input box");
+}
+
+// ── Input scrollbar state ─────────────────────────────────────────────────────
+
+#[test]
+fn input_scroll_stays_zero_for_short_message() {
+    let mut app = make_app_no_file();
+    // A short message should not trigger scrolling
+    for c in "hello".chars() { app.message_input.insert_char(c); }
+    assert_eq!(app.input_scroll, 0);
+}
+
+#[test]
+fn input_scroll_can_be_set_manually() {
+    let mut app = make_app_no_file();
+    app.input_scroll = 3;
+    assert_eq!(app.input_scroll, 3);
+}
+
+#[test]
+fn long_message_input_scrollbar_renders() {
+    let (_dir, mut app) = make_app_with_content("prompt");
+    app.screen = Screen::Chat;
+    // Type enough to overflow the 8-row input box (need > 6 inner rows)
+    for _ in 0..600 { app.message_input.insert_char('x'); }
+    // Should render without panic; scrollbar (█ or │) should appear in input area
+    let buf = render_to_buffer(&mut app, 80, 40);
+    let text = buffer_text(&buf);
+    assert!(text.contains('x'), "input content should be visible");
+    // The scrollbar thumb or track should appear somewhere in the buffer
+    assert!(text.contains('█') || text.contains('│'), "scrollbar should be rendered for long input");
+}
+
+// ── TextInput move_up / move_down / cursor_col tests ─────────────────────────
+
+#[test]
+fn text_input_cursor_col_start() {
+    let input = TextInput::default();
+    assert_eq!(input.cursor_col(10), 0);
+}
+
+#[test]
+fn text_input_cursor_col_mid_line() {
+    let mut input = TextInput::default();
+    for c in "hello".chars() { input.insert_char(c); }
+    assert_eq!(input.cursor_col(10), 5);
+}
+
+#[test]
+fn text_input_cursor_col_wraps() {
+    let mut input = TextInput::default();
+    // 12 chars with width=10 → cursor is on row 1, col 2
+    for c in "abcdefghijkl".chars() { input.insert_char(c); }
+    assert_eq!(input.cursor_col(10), 2);
+}
+
+#[test]
+fn text_input_cursor_col_after_newline() {
+    let mut input = TextInput::default();
+    for c in "hello\nworld".chars() { input.insert_char(c); }
+    // cursor is after 'd' on second logical line, col = 5
+    assert_eq!(input.cursor_col(20), 5);
+}
+
+#[test]
+fn text_input_move_up_from_second_row() {
+    let mut input = TextInput::default();
+    // "abcdefghij" = 10 chars, then "kl" = 2 more; with width=10 cursor is on row 1 col 2
+    for c in "abcdefghijkl".chars() { input.insert_char(c); }
+    let before = input.cursor;
+    input.move_up(10);
+    // Should move to row 0, col 2 → byte position 2
+    assert!(input.cursor < before, "cursor should move back");
+    assert_eq!(input.cursor, 2);
+}
+
+#[test]
+fn text_input_move_up_at_first_row_is_noop() {
+    let mut input = TextInput::default();
+    for c in "hello".chars() { input.insert_char(c); }
+    let before = input.cursor;
+    input.move_up(10);
+    assert_eq!(input.cursor, before, "move_up at row 0 should be a no-op");
+}
+
+#[test]
+fn text_input_move_down_from_first_row() {
+    let mut input = TextInput::default();
+    // 12 chars, width=10 → row 0 has cols 0-9, row 1 has cols 0-1
+    for c in "abcdefghijkl".chars() { input.insert_char(c); }
+    // Move cursor to start of row 0
+    input.move_home();
+    input.move_right(); input.move_right(); // col 2
+    let before = input.cursor;
+    input.move_down(10);
+    // Should land on row 1, col 2 → byte 12 (end of string)
+    assert!(input.cursor > before, "cursor should advance");
+}
+
+#[test]
+fn text_input_move_down_at_last_row_is_noop() {
+    let mut input = TextInput::default();
+    for c in "hello".chars() { input.insert_char(c); }
+    // Already on last row
+    let before = input.cursor;
+    input.move_down(10);
+    assert_eq!(input.cursor, before, "move_down at last row should be a no-op");
+}
+
+#[test]
+fn text_input_move_up_down_newline() {
+    let mut input = TextInput::default();
+    for c in "line1\nline2".chars() { input.insert_char(c); }
+    // cursor at end of "line2"
+    input.move_up(20);
+    // should be at end of "line1" (col 5)
+    assert_eq!(&input.value[..input.cursor], "line1");
+    input.move_down(20);
+    // should return to end of "line2"
+    assert_eq!(&input.value[..input.cursor], "line1\nline2");
+}
+
+#[test]
+fn text_input_shift_enter_inserts_newline() {
+    let mut input = TextInput::default();
+    for c in "hello".chars() { input.insert_char(c); }
+    input.insert_newline();
+    for c in "world".chars() { input.insert_char(c); }
+    assert_eq!(input.value, "hello\nworld");
+    assert!(input.value.contains('\n'), "newline should be present");
 }

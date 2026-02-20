@@ -1,6 +1,6 @@
 use anyhow::Result;
 use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyCode, KeyModifiers, MouseEventKind},
+    event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyCode, KeyModifiers, KeyboardEnhancementFlags, MouseEventKind, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -32,6 +32,10 @@ impl TextInput {
 
     pub fn lines(&self) -> Vec<String> {
         self.value.lines().map(|l| l.to_string()).collect()
+    }
+
+    pub fn insert_newline(&mut self) {
+        self.insert_char('\n');
     }
 
     pub fn insert_char(&mut self, c: char) {
@@ -67,7 +71,103 @@ impl TextInput {
     pub fn move_home(&mut self) { self.cursor = 0; }
     pub fn move_end(&mut self) { self.cursor = self.value.len(); }
 
+    /// Move cursor up one visual row (accounting for word-wrap and newlines).
+    pub fn move_up(&mut self, inner_width: usize) {
+        if inner_width == 0 { return; }
+        let before = &self.value[..self.cursor];
+        // Collect all chars before cursor with their byte positions
+        let chars: Vec<(usize, char)> = before.char_indices().collect();
+        if chars.is_empty() { return; }
+        // Find the column of the cursor on its current visual row
+        let col = self.cursor_col(inner_width);
+        let cur_row = self.cursor_row(inner_width) as usize;
+        if cur_row == 0 { return; }
+        let target_row = cur_row - 1;
+        // Walk all chars in the full value to find the position at (target_row, col)
+        self.cursor = self.pos_at_row_col(inner_width, target_row, col);
+    }
+
+    /// Move cursor down one visual row.
+    pub fn move_down(&mut self, inner_width: usize) {
+        if inner_width == 0 { return; }
+        let cur_row = self.cursor_row(inner_width) as usize;
+        let col = self.cursor_col(inner_width);
+        let target_row = cur_row + 1;
+        let new_pos = self.pos_at_row_col(inner_width, target_row, col);
+        // Only move if we actually advanced
+        if new_pos > self.cursor || target_row == 0 {
+            self.cursor = new_pos;
+        }
+    }
+
+    /// Returns the visual column of the cursor within its current visual row.
+    pub fn cursor_col(&self, inner_width: usize) -> usize {
+        if inner_width == 0 { return 0; }
+        let before = &self.value[..self.cursor];
+        // Find the last newline before cursor
+        let line_start = before.rfind('\n').map(|i| i + 1).unwrap_or(0);
+        let line_chars = before[line_start..].chars().count();
+        line_chars % inner_width.max(1)
+    }
+
+    /// Returns the byte position in `self.value` corresponding to visual (row, col).
+    fn pos_at_row_col(&self, inner_width: usize, target_row: usize, target_col: usize) -> usize {
+        if inner_width == 0 { return self.cursor; }
+        let mut row = 0usize;
+        let mut col = 0usize;
+        let mut best = self.cursor;
+        let mut found = false;
+        for (byte_pos, ch) in self.value.char_indices() {
+            if row == target_row {
+                if col >= target_col || ch == '\n' {
+                    best = byte_pos;
+                    found = true;
+                    break;
+                }
+            }
+            if ch == '\n' {
+                if row == target_row { best = byte_pos; found = true; break; }
+                row += 1;
+                col = 0;
+            } else {
+                col += 1;
+                if inner_width > 0 && col >= inner_width {
+                    if row == target_row { best = byte_pos + ch.len_utf8(); found = true; break; }
+                    row += 1;
+                    col = 0;
+                }
+            }
+        }
+        if !found && row == target_row {
+            best = self.value.len();
+        }
+        best
+    }
+
     pub fn clear(&mut self) { self.value.clear(); self.cursor = 0; }
+
+    /// Returns the wrapped row index of the cursor given an available inner width.
+    /// Used to scroll the input box so the cursor is always visible.
+    pub fn cursor_row(&self, inner_width: usize) -> u16 {
+        if inner_width == 0 { return 0; }
+        let before = &self.value[..self.cursor];
+        let mut row: usize = 0;
+        let logical_lines: Vec<&str> = before.split('\n').collect();
+        let n = logical_lines.len();
+        for (i, logical_line) in logical_lines.iter().enumerate() {
+            let char_count = logical_line.chars().count();
+            if i + 1 < n {
+                // Not the last segment: this logical line plus its newline occupies
+                // at least 1 row (empty line) or ceil(chars/width) rows.
+                row += if char_count == 0 { 1 } else { char_count.div_ceil(inner_width) };
+            } else {
+                // Last segment: cursor sits at position char_count within this line.
+                // Row within this line = char_count / inner_width (integer division).
+                row += char_count / inner_width;
+            }
+        }
+        row as u16
+    }
 
     /// Returns (text_before_cursor, cursor_char_or_space, text_after_cursor)
     pub fn split_at_cursor(&self) -> (&str, &str, &str) {
@@ -173,7 +273,7 @@ impl Provider {
             Provider::Anthropic => "claude-3-5-sonnet-20241022",
             Provider::XAI       => "grok-3",
             Provider::Ollama    => "gemma3",
-            Provider::Zen       => "zen-1",
+            Provider::Zen       => "anthropic/claude-sonnet-4-5",
             Provider::Custom    => "custom-model",
         }
     }
@@ -183,7 +283,7 @@ impl Provider {
             Provider::Anthropic => "https://api.anthropic.com/v1/messages",
             Provider::XAI       => "https://api.x.ai/v1/chat/completions",
             Provider::Ollama    => "http://localhost:11434/v1/chat/completions",
-            Provider::Zen       => "https://api.zen.ai/v1/chat/completions",
+            Provider::Zen       => "https://api.opencode.ai/v1/chat/completions",
             Provider::Custom    => "",
         }
     }
@@ -193,7 +293,7 @@ impl Provider {
             Provider::Anthropic => "Cloud · Requires API key · https://www.anthropic.com/",
             Provider::XAI       => "Cloud · Requires API key · https://x.ai/",
             Provider::Ollama    => "Local · No API key needed · https://ollama.com/",
-            Provider::Zen       => "Cloud · Requires API key · https://zen.ai/",
+            Provider::Zen       => "Cloud · Requires API key · https://opencode.ai/zen",
             Provider::Custom    => "Custom OpenAI-compatible endpoint · Enter URL below",
         }
     }
@@ -260,10 +360,14 @@ pub struct App {
     pub conv_rect: Rect,
     /// Last computed max_scroll for the conversation panel — used for scrollbar click hit-testing.
     pub conv_max_scroll: u16,
-    /// Mouse selection: start row within conv_rect (terminal row)
-    pub sel_start: Option<u16>,
-    /// Mouse selection: end row within conv_rect (terminal row)
-    pub sel_end: Option<u16>,
+    /// Mouse selection: start content line index (scroll-independent)
+    pub sel_start: Option<usize>,
+    /// Mouse selection: end content line index (scroll-independent)
+    pub sel_end: Option<usize>,
+    /// Vertical scroll offset for the message input box (cursor-line tracking)
+    pub input_scroll: u16,
+    /// Inner width of the message input box — updated every draw, used for cursor navigation.
+    pub input_inner_width: usize,
 }
 
 const MENU_ITEMS: &[&str] = &["Info", "Show Prompt", "Validate", "Tools", "Chat", "Quit"];
@@ -313,6 +417,8 @@ impl App {
             conv_max_scroll: 0,
             sel_start: None,
             sel_end: None,
+            input_scroll: 0,
+            input_inner_width: 60,
         }
     }
 
@@ -341,6 +447,15 @@ impl App {
 pub async fn run(prompt_path: PathBuf) -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
+    // Try to enable kitty keyboard protocol so terminals that support it
+    // (iTerm2, Ghostty, WezTerm, Alacritty, etc.) report Shift+Enter correctly.
+    let kitty_supported = execute!(
+        stdout,
+        PushKeyboardEnhancementFlags(
+            KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+                | KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
+        )
+    ).is_ok();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -349,6 +464,9 @@ pub async fn run(prompt_path: PathBuf) -> Result<()> {
     let result = event_loop(&mut terminal, &mut app).await;
 
     disable_raw_mode()?;
+    if kitty_supported {
+        let _ = execute!(terminal.backend_mut(), PopKeyboardEnhancementFlags);
+    }
     execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
     terminal.show_cursor()?;
     result
@@ -444,9 +562,17 @@ async fn event_loop(
                                     }
                                 } else if mouse.column >= r.x && mouse.column < r.x + r.width
                                     && mouse.row >= r.y && mouse.row < r.y + r.height {
-                                    // Start a new text selection
-                                    app.sel_start = Some(mouse.row);
-                                    app.sel_end = Some(mouse.row);
+                                    // Start a new text selection — store as content line index
+                                    let inner_top = r.y + 1;
+                                    let eff = if app.chat_scroll_manual {
+                                        app.chat_scroll.min(app.conv_max_scroll)
+                                    } else {
+                                        app.conv_max_scroll
+                                    };
+                                    let idx = (mouse.row.saturating_sub(inner_top) as usize)
+                                        .saturating_add(eff as usize);
+                                    app.sel_start = Some(idx);
+                                    app.sel_end = Some(idx);
                                 }
                             }
                         }
@@ -467,8 +593,16 @@ async fn event_loop(
                                 } else if app.sel_start.is_some()
                                     && mouse.column >= r.x && mouse.column < r.x + r.width
                                     && mouse.row >= r.y && mouse.row < r.y + r.height {
-                                    // Extend selection
-                                    app.sel_end = Some(mouse.row);
+                                    // Extend selection — store as content line index
+                                    let inner_top = r.y + 1;
+                                    let eff = if app.chat_scroll_manual {
+                                        app.chat_scroll.min(app.conv_max_scroll)
+                                    } else {
+                                        app.conv_max_scroll
+                                    };
+                                    let idx = (mouse.row.saturating_sub(inner_top) as usize)
+                                        .saturating_add(eff as usize);
+                                    app.sel_end = Some(idx);
                                 }
                             }
                         }
@@ -666,7 +800,7 @@ async fn handle_chat_key(
                     app.model_input = m.clone();
                 }
             }
-            ChatFocus::Message => { handle_text_input_key(&mut app.message_input, key); }
+            ChatFocus::Message => { handle_text_input_key(&mut app.message_input, key, app.input_inner_width); }
             _ => {}
         },
         KeyCode::Down => match app.chat_focus {
@@ -691,9 +825,22 @@ async fn handle_chat_key(
                     app.model_input = m.clone();
                 }
             }
-            ChatFocus::Message => { handle_text_input_key(&mut app.message_input, key); }
+            ChatFocus::Message => { handle_text_input_key(&mut app.message_input, key, app.input_inner_width); }
             _ => {}
         },
+        // Shift+Enter inserts a newline. On terminals without kitty protocol,
+        // Shift+Enter arrives as plain Enter with no modifiers, so we also
+        // accept Ctrl+J (ASCII LF) as a universal alternative.
+        KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
+            if app.chat_focus == ChatFocus::Message {
+                app.message_input.insert_newline();
+            }
+        }
+        KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            if app.chat_focus == ChatFocus::Message {
+                app.message_input.insert_newline();
+            }
+        }
         KeyCode::Enter => match app.chat_focus {
             ChatFocus::ProviderList => {
                 // confirm provider; if Ollama fetch models
@@ -715,6 +862,7 @@ async fn handle_chat_key(
                 if !msg.is_empty() {
                     app.messages.push(("user".to_string(), msg.clone()));
                     app.message_input = TextInput::new();
+                    app.input_scroll = 0;
                     app.status = "Streaming…".to_string();
                     app.streaming = true;
                     app.chat_scroll_manual = false;
@@ -743,22 +891,24 @@ async fn handle_chat_key(
         KeyCode::Backspace => match app.chat_focus {
             ChatFocus::Token => { app.api_token.pop(); }
             ChatFocus::CustomUrl => { app.custom_url.pop(); }
-            ChatFocus::Message => { handle_text_input_key(&mut app.message_input, key); }
+            ChatFocus::Message => { handle_text_input_key(&mut app.message_input, key, app.input_inner_width); }
             _ => {}
         },
         KeyCode::Char(c) => {
             let ctrl_c = key.modifiers.contains(KeyModifiers::CONTROL) && c == 'c';
             let cmd_c  = key.modifiers.contains(KeyModifiers::SUPER)   && c == 'c';
-            if ctrl_c || cmd_c {
+            // On macOS the standard copy binding is Cmd+C; on Windows/Linux it is Ctrl+C.
+            let is_copy = if cfg!(target_os = "macos") { cmd_c } else { ctrl_c };
+            // Ctrl+C always navigates back to menu on all platforms when no selection exists.
+            if is_copy || ctrl_c {
                 // If there is an active selection, copy it; otherwise go back to menu (Ctrl+C only)
-                if let (Some(start_row), Some(end_row)) = (app.sel_start, app.sel_end) {
-                    let r = app.conv_rect;
-                    let inner_top = r.y + 1;
-                    let effective_scroll = if app.chat_scroll_manual {
-                        app.chat_scroll.min(app.conv_max_scroll)
+                if let (Some(first_line), Some(last_line)) = (app.sel_start, app.sel_end) {
+                    let (first_line, last_line) = if first_line <= last_line {
+                        (first_line, last_line)
                     } else {
-                        app.conv_max_scroll
+                        (last_line, first_line)
                     };
+                    let r = app.conv_rect;
                     let conv_inner_width = r.width.saturating_sub(3) as usize;
                     let mut rendered: Vec<String> = Vec::new();
                     for (role, content) in &app.messages {
@@ -782,9 +932,6 @@ async fn handle_chat_key(
                         }
                         rendered.push(String::new());
                     }
-                    let (r0, r1) = if start_row <= end_row { (start_row, end_row) } else { (end_row, start_row) };
-                    let first_line = (r0.saturating_sub(inner_top) as usize).saturating_add(effective_scroll as usize);
-                    let last_line  = (r1.saturating_sub(inner_top) as usize).saturating_add(effective_scroll as usize);
                     let selected: Vec<&str> = rendered.iter().enumerate()
                         .filter(|(i, _)| *i >= first_line && *i <= last_line)
                         .map(|(_, l)| l.as_str())
@@ -814,14 +961,14 @@ async fn handle_chat_key(
                     app.status = "✓ API token saved".to_string();
                 }
                 ChatFocus::CustomUrl => app.custom_url.push(c),
-                ChatFocus::Message => { handle_text_input_key(&mut app.message_input, key); }
+                ChatFocus::Message => { handle_text_input_key(&mut app.message_input, key, app.input_inner_width); }
                 _ => {}
             }
         }
         _ => {
             // Forward any other key events to the message TextInput when focused
             if app.chat_focus == ChatFocus::Message {
-                handle_text_input_key(&mut app.message_input, key);
+                handle_text_input_key(&mut app.message_input, key, app.input_inner_width);
             }
         }
     }
@@ -830,8 +977,9 @@ async fn handle_chat_key(
 
 // ── TextInput key handler ─────────────────────────────────────────────────────
 
-fn handle_text_input_key(input: &mut TextInput, key: crossterm::event::KeyEvent) {
+fn handle_text_input_key(input: &mut TextInput, key: crossterm::event::KeyEvent, inner_width: usize) {
     use crossterm::event::KeyCode;
+    use crossterm::event::KeyModifiers;
     match key.code {
         KeyCode::Char(c) => input.insert_char(c),
         KeyCode::Backspace => input.delete_char_before(),
@@ -840,6 +988,9 @@ fn handle_text_input_key(input: &mut TextInput, key: crossterm::event::KeyEvent)
         KeyCode::Right => input.move_right(),
         KeyCode::Home => input.move_home(),
         KeyCode::End => input.move_end(),
+        KeyCode::Up => input.move_up(inner_width),
+        KeyCode::Down => input.move_down(inner_width),
+        KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => input.insert_newline(),
         _ => {}
     }
 }
@@ -1522,7 +1673,7 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &mut App) {
     // ── Right: conversation + input ───────────────────────────────────────────
     let right_rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(3), Constraint::Length(1)])
+        .constraints([Constraint::Min(0), Constraint::Length(8), Constraint::Length(1)])
         .split(cols[1]);
 
     // Conversation history
@@ -1582,20 +1733,9 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &mut App) {
         max_scroll
     };
 
-    // Apply selection highlight to visible lines
-    let conv_inner_top = right_rows[0].y + 1;
+    // Apply selection highlight — sel_start/sel_end are content line indices (scroll-independent)
     if let (Some(s), Some(e)) = (app.sel_start, app.sel_end) {
-        let (row_min, row_max) = if s <= e { (s, e) } else { (e, s) };
-        let effective_scroll_for_sel = if app.chat_scroll_manual {
-            app.chat_scroll.min(max_scroll)
-        } else {
-            max_scroll
-        };
-        // Map terminal rows to logical line indices
-        let first_sel = (row_min.saturating_sub(conv_inner_top) as usize)
-            .saturating_add(effective_scroll_for_sel as usize);
-        let last_sel = (row_max.saturating_sub(conv_inner_top) as usize)
-            .saturating_add(effective_scroll_for_sel as usize);
+        let (first_sel, last_sel) = if s <= e { (s, e) } else { (e, s) };
         // Walk rendered lines (accounting for wrap) to find which logical indices to highlight
         let mut rendered_idx: usize = 0;
         for line in conv_lines.iter_mut() {
@@ -1603,7 +1743,6 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &mut App) {
             let wrapped = if conv_inner_width == 0 || text_width == 0 { 1 } else { text_width.div_ceil(conv_inner_width) };
             for _ in 0..wrapped {
                 if rendered_idx >= first_sel && rendered_idx <= last_sel {
-                    // Highlight this line
                     for span in line.spans.iter_mut() {
                         span.style = span.style.bg(Color::Rgb(60, 80, 120));
                     }
@@ -1656,24 +1795,89 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &mut App) {
     } else {
         Style::default().fg(Color::DarkGray)
     };
-    let input_line = Line::from(vec![
-        Span::styled(before.to_string(), Style::default().fg(Color::White)),
-        Span::styled(cursor_ch.to_string(), cursor_style),
-        Span::styled(after.to_string(), Style::default().fg(Color::White)),
-    ]);
-    let input_widget = Paragraph::new(input_line)
+    // Build multi-line input: split text into logical lines, inserting cursor marker in the right line
+    let input_inner_width = right_rows[1].width.saturating_sub(3) as usize; // -2 borders -1 scrollbar
+    app.input_inner_width = input_inner_width.max(1);
+    let input_inner_height = right_rows[1].height.saturating_sub(2) as usize;
+
+    // Build lines from the full text, placing cursor highlight at the correct position
+    let full_before = before.to_string();
+    let full_after = after.to_string();
+    let cursor_char = cursor_ch.to_string();
+
+    // Split before+cursor+after into logical lines (by '\n'), then each logical line
+    // further wraps into rendered rows of `input_inner_width` chars.
+    let combined = format!("{full_before}\x00{cursor_char}\x00{full_after}");
+    let logical_lines: Vec<&str> = combined.split('\n').collect();
+    let mut input_lines: Vec<Line> = Vec::new();
+    for logical in &logical_lines {
+        // Find cursor marker positions
+        if let Some(c0) = logical.find('\x00') {
+            let rest = &logical[c0 + 1..];
+            if let Some(c1) = rest.find('\x00') {
+                let seg_before = &logical[..c0];
+                let seg_cursor = &rest[..c1];
+                let seg_after = &rest[c1 + 1..];
+                input_lines.push(Line::from(vec![
+                    Span::styled(seg_before.to_string(), Style::default().fg(Color::White)),
+                    Span::styled(seg_cursor.to_string(), cursor_style),
+                    Span::styled(seg_after.to_string(), Style::default().fg(Color::White)),
+                ]));
+            } else {
+                input_lines.push(Line::from(Span::styled(logical.replace('\x00', ""), Style::default().fg(Color::White))));
+            }
+        } else {
+            input_lines.push(Line::from(Span::styled(logical.to_string(), Style::default().fg(Color::White))));
+        }
+    }
+
+    // Count total rendered rows (accounting for word-wrap)
+    let input_total_rows: usize = input_lines.iter().map(|line| {
+        let w: usize = line.spans.iter().map(|s| s.content.chars().count()).sum();
+        if input_inner_width == 0 || w == 0 { 1 } else { w.div_ceil(input_inner_width) }
+    }).sum::<usize>().max(1);
+    let input_max_scroll = if input_total_rows > input_inner_height {
+        (input_total_rows - input_inner_height) as u16
+    } else {
+        0
+    };
+
+    // Compute cursor row for auto-scroll
+    let cursor_row = app.message_input.cursor_row(input_inner_width);
+    if (cursor_row as usize) < app.input_scroll as usize {
+        app.input_scroll = cursor_row;
+    } else if input_inner_height > 0 && (cursor_row as usize) >= app.input_scroll as usize + input_inner_height {
+        app.input_scroll = cursor_row.saturating_sub((input_inner_height as u16).saturating_sub(1));
+    }
+    let effective_input_scroll = app.input_scroll.min(input_max_scroll);
+
+    let input_widget = Paragraph::new(input_lines)
         .block(
             Block::default()
-                .title(" Message (Enter to send) ")
+                .title(" Message  [Shift+Enter or Ctrl+J: newline] ")
                 .title_style(Style::default().fg(if msg_focused { Color::Yellow } else { Color::DarkGray }))
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(if msg_focused { Color::Yellow } else { Color::Rgb(50, 50, 80) })),
-        );
+        )
+        .wrap(Wrap { trim: false })
+        .scroll((effective_input_scroll, 0));
     f.render_widget(input_widget, right_rows[1]);
+
+    // Input scrollbar
+    if input_total_rows > input_inner_height {
+        let mut input_scrollbar_state = ScrollbarState::new(input_max_scroll as usize)
+            .position(effective_input_scroll as usize);
+        let input_scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+            .begin_symbol(Some("▲"))
+            .end_symbol(Some("▼"))
+            .track_symbol(Some("│"))
+            .thumb_symbol("█");
+        f.render_stateful_widget(input_scrollbar, right_rows[1], &mut input_scrollbar_state);
+    }
 
     // Cursor hint
     let hint = Paragraph::new(Span::styled(
-        " Tab: cycle focus   ↑/↓: scroll (Conversation) or navigate   Enter: select/send   End: auto-scroll   Esc: menu ",
+        " Tab: cycle focus   ↑/↓: scroll/navigate   Enter: select/send   Shift+Enter or Ctrl+J: newline   End: auto-scroll   Esc: menu ",
         Style::default().fg(Color::DarkGray),
     ));
     f.render_widget(hint, right_rows[2]);
