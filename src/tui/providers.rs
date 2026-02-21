@@ -46,7 +46,7 @@ impl Provider {
             Provider::OpenAI    => "https://api.openai.com/v1/chat/completions",
             Provider::Anthropic => "https://api.anthropic.com/v1/messages",
             Provider::XAI       => "https://api.x.ai/v1/chat/completions",
-            Provider::Ollama    => "http://localhost:11434/v1/chat/completions",
+            Provider::Ollama    => "http://localhost:11434/api/chat",
             Provider::Zen       => "https://api.opencode.ai/v1/chat/completions",
             Provider::Custom    => "",
         }

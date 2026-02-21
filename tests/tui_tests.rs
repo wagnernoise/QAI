@@ -124,7 +124,7 @@ fn provider_xai_api_url() {
 
 #[test]
 fn provider_ollama_api_url() {
-    assert_eq!(Provider::Ollama.api_url(), "http://localhost:11434/v1/chat/completions");
+    assert_eq!(Provider::Ollama.api_url(), "http://localhost:11434/api/chat");
 }
 
 #[test]

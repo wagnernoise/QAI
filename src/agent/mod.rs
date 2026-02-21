@@ -380,8 +380,16 @@ impl ReActAgent {
             .timeout(std::time::Duration::from_secs(120))
             .build()?;
 
-        let url = if self.provider == Provider::Custom && !self.custom_url.is_empty() {
-            self.custom_url.clone()
+        let url = if !self.custom_url.is_empty()
+            && (self.provider == Provider::Custom || self.provider == Provider::Ollama)
+        {
+            // For Ollama, append the chat endpoint if not already present
+            let base = self.custom_url.trim_end_matches('/');
+            if self.provider == Provider::Ollama {
+                format!("{}/api/chat", base)
+            } else {
+                base.to_string()
+            }
         } else {
             self.provider.api_url().to_string()
         };

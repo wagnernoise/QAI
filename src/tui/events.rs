@@ -478,6 +478,15 @@ async fn handle_chat_key(
                 // confirm model selection, move to message
                 app.chat_focus = ChatFocus::Message;
             }
+            ChatFocus::CustomUrl => {
+                // confirm custom URL; for Ollama, fetch models from the new server
+                if app.selected_provider() == Provider::Ollama {
+                    fetch_ollama_models(app).await;
+                    app.chat_focus = ChatFocus::ModelList;
+                } else {
+                    app.chat_focus = ChatFocus::Token;
+                }
+            }
             ChatFocus::Message => {
                 if app.streaming { return Ok(()); }
                 let msg = app.message_input_text();
