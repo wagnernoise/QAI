@@ -72,9 +72,7 @@ async fn event_loop(
         tokio::select! {
             // 50 ms tick — redraws and clears timed status messages
             _ = tick.tick() => {
-                if app.streaming {
-                    app.think_tick = app.think_tick.wrapping_add(1);
-                }
+                let _ = app.streaming; // keep redraw active while thinking
                 if let Some(saved_at) = app.token_saved_at {
                     if saved_at.elapsed() >= std::time::Duration::from_secs(3) {
                         if app.status == "✓ API token saved" {
@@ -104,7 +102,6 @@ async fn event_loop(
                     None => {
                         // Stream finished
                         app.streaming = false;
-                        app.think_tick = 0;
                         app.status = String::new();
                     }
                 }
@@ -495,7 +492,7 @@ async fn handle_chat_key(
                     app.messages.push(("user".to_string(), msg.clone()));
                     app.message_input = TextInput::new();
                     app.input_scroll = 0;
-                    app.status = "Streaming…".to_string();
+                    app.status = "Thinking…".to_string();
                     app.streaming = true;
                     app.chat_scroll_manual = false;
                     app.chat_scroll = 0;
