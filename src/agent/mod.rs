@@ -291,9 +291,7 @@ impl ReActAgent {
                 // Attempt to recover a plain-text tool call emitted by the LLM
                 // e.g. the model writes:  read_file\nREADME.md  instead of <tool name="read_file">README.md</tool>
                 if let Some(recovered) = try_recover_plain_tool(&llm_response) {
-                    let _ = tx.send(Some(format!(
-                        "⚠️ *Model ignored XML format — auto-recovering tool call.*\n"
-                    )));
+                    let _ = tx.send(Some("⚠️ *Model ignored XML format — auto-recovering tool call.*\n".to_string()));
                     steps.push(recovered);
                 } else {
                     // No tags and no recoverable tool call — show response and finish
