@@ -104,30 +104,71 @@ The TUI provides a navigable menu with these screens:
 | Tools        | List expected tool categories                    |
 | Chat         | Send messages to an LLM via API                  |
 
-**Keyboard shortcuts:**
+**Keyboard shortcuts — general:**
 
-| Key            | Action                        |
-|----------------|-------------------------------|
-| `↑` / `↓`      | Navigate menu                 |
-| `Enter`        | Select item                   |
-| `q` / `Esc`    | Go back / quit                |
-| `Tab`          | Next field (Chat screen)      |
-| `Shift+Tab`    | Previous field (Chat screen)  |
-| `j` / `k`      | Scroll up/down (Show screen)  |
+| Key            | Action                                      |
+|----------------|---------------------------------------------|
+| `↑` / `↓`      | Navigate menu / lists                       |
+| `Enter`        | Select item                                 |
+| `q` / `Esc`    | Go back / quit                              |
+| `Tab`          | Next field (Chat screen)                    |
+| `Shift+Tab`    | Previous field (Chat screen)                |
+| `j` / `k`      | Scroll up/down (Show screen)                |
 
-#### Chat screen — API token & model hookup
+**Keyboard shortcuts — Chat screen:**
 
-In the Chat screen you can connect to any supported LLM provider:
+| Key                        | Action                                              |
+|----------------------------|-----------------------------------------------------|
+| `Tab` / `Shift+Tab`        | Cycle focus: Provider → Model → Token → Message → Conversation |
+| `↑` / `↓`                  | Navigate provider/model list; scroll conversation when focused |
+| `Enter`                    | Confirm selection / send message                    |
+| `Shift+Enter` / `Ctrl+J`   | Insert newline in message box                       |
+| `PageUp` / `PageDown`      | Scroll conversation 5 lines                         |
+| `End`                      | Jump to bottom of conversation (resume auto-scroll) |
+| `Esc` (once)               | Show stop-inference hint                            |
+| `Esc` (twice, within 1 s)  | Cancel active inference / stop streaming            |
+| `Ctrl+C` / `Cmd+C` (macOS) | Copy selected conversation text to clipboard        |
+| `F2`                       | Toggle Agent Mode on/off                            |
 
-1. **Tab** to the **API Token** field and type your key.
-2. **Tab** to the **Provider** list and select one with `↑`/`↓`:
-   - `OpenAI (GPT-4o)` — uses `https://api.openai.com/v1/chat/completions`
-   - `Anthropic (Claude)` — uses `https://api.anthropic.com/v1/messages`
-   - `xAI (Grok)` — uses `https://api.x.ai/v1/chat/completions`
-   - `Custom endpoint` — enter any OpenAI-compatible URL
-3. **Tab** to the **Message** field, type your message, and press **Enter** to send.
+#### Chat screen — providers & API token
+
+The Chat screen supports the following LLM providers:
+
+| Provider          | Default model                      | API endpoint                                        |
+|-------------------|------------------------------------|-----------------------------------------------------|
+| OpenAI            | `gpt-4o`                           | `https://api.openai.com/v1/chat/completions`        |
+| Anthropic         | `claude-3-5-sonnet-20241022`       | `https://api.anthropic.com/v1/messages`             |
+| xAI (Grok)        | `grok-3`                           | `https://api.x.ai/v1/chat/completions`              |
+| Ollama (local)    | fetched dynamically from `/api/tags` | `http://localhost:11434`                           |
+| Zen (OpenCode)    | `anthropic/claude-sonnet-4-5`      | `https://api.opencode.ai/v1/chat/completions`       |
+| Custom endpoint   | user-defined                       | any OpenAI-compatible URL                           |
+
+**Connecting to a provider:**
+
+1. **Tab** to the **Provider** list and select one with `↑`/`↓`, then press `Enter`.
+2. For **Ollama**, available models are fetched automatically — select one from the list.
+3. For other providers, **Tab** to the **API Token** field and enter your key.
+   - The token is saved automatically to `~/.config/qai/config.toml` and reloaded on next launch.
+   - A `✓ API token saved` confirmation appears in the status bar for ~3 seconds.
+4. **Tab** to the **Message** field, type your prompt, and press `Enter` to send.
 
 The QA-Bot system prompt is automatically pre-loaded as the system message for every conversation.
+
+**Streaming & real-time updates:**
+- Responses stream token-by-token in real time.
+- A blinking `⏳ Thinking...` indicator appears in the conversation while the model is responding.
+- The conversation auto-scrolls to the latest token; press `End` to re-enable auto-scroll after manual scrolling.
+
+**Message box:**
+- Supports multi-line input — use `Shift+Enter` or `Ctrl+J` to insert a newline.
+- The box grows vertically (8 rows) with word-wrap and a scrollbar for long prompts.
+- Use arrow keys to move the cursor; `Home`/`End` jump to line start/end.
+
+**Conversation scrolling:**
+- Press `Tab` to focus the Conversation panel (highlighted in yellow).
+- Use `↑`/`↓` to scroll line by line, `PageUp`/`PageDown` for 5-line jumps.
+- A scrollbar on the right edge shows your position; click or drag it with the mouse.
+- Click and drag to select text; press `Ctrl+C` (Linux/Windows) or `Cmd+C` (macOS) to copy the selection.
 
 #### Agent Mode (ReAct loop)
 
@@ -148,14 +189,22 @@ chat completion.
    - `<answer>…</answer>` — the final answer (shown as ✅ Answer)
 3. Tool results are fed back as observations and the loop repeats until an answer is produced
    or the step limit (10) is reached.
+4. The full conversation history is retained across turns (conversation memory).
 
 **Built-in tools:**
 
-| Tool | Description |
-|---|---|
-| `read_file` | Read a local file by path |
-| `shell` | Run a shell command and return stdout/stderr |
-| `web_search` | Query DuckDuckGo instant-answer API |
+| Tool         | Description                                                                 |
+|--------------|-----------------------------------------------------------------------------|
+| `read_file`  | Read a local file by path                                                   |
+| `write_file` | Create or overwrite a file (`path\ncontent`)                                |
+| `edit_file`  | Search-and-replace inside a file (`path\n<<<\nsearch\n===\nreplacement\n>>>`) |
+| `shell`      | Run a shell command and return stdout/stderr                                |
+| `web_search` | Query DuckDuckGo instant-answer API                                         |
+| `git_status` | Run `git status` in the current directory                                   |
+| `git_diff`   | Run `git diff` (optionally with extra args)                                 |
+| `git_add`    | Stage files (`git add <args>`)                                              |
+| `git_commit` | Commit staged changes (`git commit -m "<message>"`)                         |
+| `git_log`    | Show recent commits (`git log --oneline -10`)                               |
 
 **Example conversation in Agent Mode:**
 ```
