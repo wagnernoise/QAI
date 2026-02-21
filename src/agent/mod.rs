@@ -377,7 +377,8 @@ impl ReActAgent {
 
     async fn call_llm(&self, system: &str, history: &[(String, String)]) -> Result<String> {
         let client = Client::builder()
-            .timeout(std::time::Duration::from_secs(120))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(std::time::Duration::from_secs(1800))
             .build()?;
 
         let url = if !self.custom_url.is_empty()
