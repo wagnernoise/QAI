@@ -82,6 +82,7 @@ pub struct App {
     /// Inner width of the message input box — updated every draw, used for cursor navigation.
     pub input_inner_width: usize,
     pub agent_mode: bool,  // true = route messages through ReActAgent
+    pub think_tick: u8,   // incremented on each 50ms tick, used for blinking "Thinking..." indicator
 }
 
 pub const MENU_ITEMS: &[&str] = &["Info", "Show Prompt", "Validate", "Tools", "Chat", "Quit"];
@@ -136,6 +137,7 @@ impl App {
             input_scroll: 0,
             input_inner_width: 60,
             agent_mode: false,
+            think_tick: 0,
         }
     }
 

@@ -72,6 +72,9 @@ async fn event_loop(
         tokio::select! {
             // 50 ms tick — redraws and clears timed status messages
             _ = tick.tick() => {
+                if app.streaming {
+                    app.think_tick = app.think_tick.wrapping_add(1);
+                }
                 if let Some(saved_at) = app.token_saved_at {
                     if saved_at.elapsed() >= std::time::Duration::from_secs(3) {
                         if app.status == "✓ API token saved" {
@@ -101,6 +104,7 @@ async fn event_loop(
                     None => {
                         // Stream finished
                         app.streaming = false;
+                        app.think_tick = 0;
                         app.status = String::new();
                     }
                 }
@@ -501,9 +505,10 @@ async fn handle_chat_key(
                             let agent = ReActAgent::new(
                                 provider, token, custom_url, model, system_prompt,
                             );
-                            // last message is the user task
+                            // last message is the current user task; pass full history for memory
                             let task = history.last().map(|(_, c)| c.clone()).unwrap_or_default();
-                            if let Err(e) = agent.run(task, tx.clone()).await {
+                            let prior = history[..history.len().saturating_sub(1)].to_vec();
+                            if let Err(e) = agent.run(task, prior, tx.clone()).await {
                                 let _ = tx.send(Some(format!("\n[Agent error: {e}]")));
                                 let _ = tx.send(None);
                             }

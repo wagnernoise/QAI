@@ -1373,3 +1373,42 @@ fn text_input_shift_enter_inserts_newline() {
     assert_eq!(input.value, "hello\nworld");
     assert!(input.value.contains('\n'), "newline should be present");
 }
+
+#[test]
+fn app_new_think_tick_starts_at_zero() {
+    let (_dir, app) = make_app_with_content("prompt");
+    assert_eq!(app.think_tick, 0);
+}
+
+#[test]
+fn thinking_indicator_visible_when_streaming_and_tick_even_phase() {
+    let (_dir, mut app) = make_app_with_content("prompt");
+    app.screen = Screen::Chat;
+    app.streaming = true;
+    app.think_tick = 0; // phase 0 → visible
+    let buf = render_to_buffer(&mut app, 80, 24);
+    let content: String = buf.content().iter().map(|c| c.symbol()).collect();
+    assert!(content.contains("Thinking"), "indicator should be visible at tick phase 0");
+}
+
+#[test]
+fn thinking_indicator_hidden_when_streaming_and_tick_odd_phase() {
+    let (_dir, mut app) = make_app_with_content("prompt");
+    app.screen = Screen::Chat;
+    app.streaming = true;
+    app.think_tick = 10; // phase 1 → hidden
+    let buf = render_to_buffer(&mut app, 80, 24);
+    let content: String = buf.content().iter().map(|c| c.symbol()).collect();
+    assert!(!content.contains("Thinking"), "indicator should be hidden at tick phase 1");
+}
+
+#[test]
+fn thinking_indicator_hidden_when_not_streaming() {
+    let (_dir, mut app) = make_app_with_content("prompt");
+    app.screen = Screen::Chat;
+    app.streaming = false;
+    app.think_tick = 0;
+    let buf = render_to_buffer(&mut app, 80, 24);
+    let content: String = buf.content().iter().map(|c| c.symbol()).collect();
+    assert!(!content.contains("Thinking"), "indicator should not appear when not streaming");
+}

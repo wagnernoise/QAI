@@ -488,6 +488,13 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &mut App) {
         }
         conv_lines.push(Line::from(""));
     }
+    // Blinking "Thinking..." indicator while streaming (toggles every ~500 ms = 10 ticks of 50 ms)
+    if app.streaming && (app.think_tick / 10) % 2 == 0 {
+        conv_lines.push(Line::from(Span::styled(
+            " ⏳ Thinking...",
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        )));
+    }
     if !app.status.is_empty() {
         conv_lines.push(Line::from(Span::styled(
             format!(" {}", app.status),
