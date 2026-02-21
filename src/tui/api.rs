@@ -121,6 +121,14 @@ pub async fn stream_message(req: StreamRequest) -> Result<()> {
                     anyhow::bail!("Custom endpoint URL is empty");
                 }
                 custom_url.trim().to_string()
+            } else if provider == Provider::Ollama && !custom_url.trim().is_empty() {
+                // Custom Ollama server URL — append /api/chat if not already a full path
+                let base = custom_url.trim().trim_end_matches('/');
+                if base.ends_with("/api/chat") {
+                    base.to_string()
+                } else {
+                    format!("{base}/api/chat")
+                }
             } else {
                 provider.api_url().to_string()
             };
@@ -202,11 +210,16 @@ pub async fn fetch_ollama_models(app: &mut App) {
     use reqwest::Client;
     use serde_json::Value;
 
-    let base = if app.selected_provider() == Provider::Ollama {
-        "http://localhost:11434"
-    } else {
+    if app.selected_provider() != Provider::Ollama {
         return;
+    }
+    let custom = app.custom_url.trim().to_string();
+    let base_owned = if custom.is_empty() {
+        "http://localhost:11434".to_string()
+    } else {
+        custom.trim_end_matches('/').to_string()
     };
+    let base = base_owned.as_str();
 
     app.status = "Fetching Ollama models…".to_string();
     let client = Client::new();
@@ -239,7 +252,7 @@ pub async fn fetch_ollama_models(app: &mut App) {
             }
         },
         Err(e) => {
-            app.status = format!("Cannot reach Ollama at {base}: {e}");
+            app.status = format!("Cannot reach Ollama at {base}/api/tags: {e}");
         }
     }
 }

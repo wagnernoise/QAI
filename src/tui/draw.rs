@@ -348,7 +348,7 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &mut App) {
         .constraints([
             Constraint::Min(6),                                      // provider list
             Constraint::Length(if is_ollama { 6 } else { 0 }),       // model list (Ollama)
-            Constraint::Length(if is_custom { 3 } else { 0 }),       // custom url
+            Constraint::Length(if is_ollama || is_custom { 3 } else { 0 }), // custom url
             Constraint::Length(3),                                   // token
             Constraint::Length(3),                                   // active model display
         ])
@@ -410,11 +410,11 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &mut App) {
         }
     }
 
-    // Custom URL field
-    if is_custom {
+    // Custom URL field (Ollama custom server or Custom provider)
+    if is_ollama || is_custom {
         let url_focused = app.chat_focus == ChatFocus::CustomUrl;
         let url_block = Block::default()
-            .title(" Endpoint URL ")
+            .title(if is_ollama { " Ollama Server URL (leave blank for localhost) " } else { " Endpoint URL " })
             .title_style(Style::default().fg(if url_focused { Color::Yellow } else { Color::DarkGray }))
             .borders(Borders::ALL)
             .border_style(Style::default().fg(if url_focused { Color::Yellow } else { Color::Rgb(50, 50, 80) }));

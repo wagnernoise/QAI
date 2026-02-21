@@ -346,9 +346,9 @@ async fn handle_chat_key(
                         ChatFocus::Token
                     }
                 }
-                ChatFocus::ModelList => ChatFocus::Token,
+                ChatFocus::ModelList => ChatFocus::CustomUrl,
                 ChatFocus::Token => ChatFocus::Message,
-                ChatFocus::CustomUrl => ChatFocus::Message,
+                ChatFocus::CustomUrl => ChatFocus::Token,
                 ChatFocus::Message => ChatFocus::Conversation,
                 ChatFocus::Conversation => ChatFocus::ProviderList,
             };
@@ -360,21 +360,21 @@ async fn handle_chat_key(
                 ChatFocus::ProviderList => ChatFocus::Conversation,
                 ChatFocus::ModelList => ChatFocus::ProviderList,
                 ChatFocus::Token => {
+                    if is_ollama || is_custom {
+                        ChatFocus::CustomUrl
+                    } else {
+                        ChatFocus::ProviderList
+                    }
+                }
+                ChatFocus::CustomUrl => {
                     if is_ollama {
                         ChatFocus::ModelList
                     } else {
                         ChatFocus::ProviderList
                     }
                 }
-                ChatFocus::CustomUrl => ChatFocus::ProviderList,
                 ChatFocus::Conversation => ChatFocus::Message,
-                ChatFocus::Message => {
-                    if is_custom {
-                        ChatFocus::CustomUrl
-                    } else {
-                        ChatFocus::Token
-                    }
-                }
+                ChatFocus::Message => ChatFocus::Token,
             };
         }
         // Conversation scroll: PageUp / PageDown always, Alt+↑/↓ always
