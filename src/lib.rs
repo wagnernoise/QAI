@@ -2,6 +2,7 @@ pub mod tui;
 pub mod agent;
 
 pub use tui::{render_to_buffer, save_api_token, load_api_token, strip_model_tags, App, ChatFocus, Provider, Screen, TextInput};
+pub use agent::{parse_step, parse_steps, try_recover_plain_tool, StepKind};
 
 use anyhow::{bail, Context, Result};
 use std::fs;

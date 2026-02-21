@@ -1,4 +1,4 @@
-use qai_cli::agent::{parse_step, StepKind, ReActAgent, MAX_STEPS, tools};
+use qai_cli::agent::{parse_step, parse_steps, try_recover_plain_tool, StepKind, ReActAgent, MAX_STEPS, tools};
 use qai_cli::tui::providers::Provider;
 use tokio::sync::mpsc;
 
@@ -81,6 +81,54 @@ fn parse_step_tool_web_search() {
             input: "Rust async programming".to_string(),
         })
     );
+}
+
+// ── parse_steps multi-tag tests ───────────────────────────────────────────────
+
+#[test]
+fn parse_steps_think_then_tool() {
+    let text = r#"<think>I should read the file first</think><tool name="read_file">README.md</tool>"#;
+    let steps = parse_steps(text);
+    assert_eq!(steps.len(), 2);
+    assert_eq!(steps[0], StepKind::Thought);
+    assert_eq!(steps[1], StepKind::ToolCall { name: "read_file".to_string(), input: "README.md".to_string() });
+}
+
+#[test]
+fn parse_steps_think_tool_answer() {
+    let text = r#"<think>plan</think><tool name="shell">ls</tool><answer>done</answer>"#;
+    let steps = parse_steps(text);
+    assert_eq!(steps.len(), 3);
+    assert_eq!(steps[0], StepKind::Thought);
+    assert!(matches!(&steps[1], StepKind::ToolCall { name, .. } if name == "shell"));
+    assert_eq!(steps[2], StepKind::Answer("done".to_string()));
+}
+
+#[test]
+fn parse_steps_multiple_tools() {
+    let text = r#"<tool name="read_file">a.txt</tool><tool name="shell">echo hi</tool>"#;
+    let steps = parse_steps(text);
+    assert_eq!(steps.len(), 2);
+    assert!(matches!(&steps[0], StepKind::ToolCall { name, .. } if name == "read_file"));
+    assert!(matches!(&steps[1], StepKind::ToolCall { name, .. } if name == "shell"));
+}
+
+#[test]
+fn parse_steps_answer_stops_parsing() {
+    let text = r#"<answer>final</answer><tool name="shell">ls</tool>"#;
+    let steps = parse_steps(text);
+    assert_eq!(steps.len(), 1);
+    assert_eq!(steps[0], StepKind::Answer("final".to_string()));
+}
+
+#[test]
+fn parse_steps_empty_returns_empty() {
+    assert!(parse_steps("").is_empty());
+}
+
+#[test]
+fn parse_steps_plain_text_returns_empty() {
+    assert!(parse_steps("no tags here at all").is_empty());
 }
 
 // ── MAX_STEPS constant ────────────────────────────────────────────────────────
@@ -447,6 +495,65 @@ fn agent_run_prior_history_preserves_full_context() {
     // All 4 prior turns preserved + new task = 5 entries
     assert_eq!(history.len(), 5);
     assert_eq!(history[4], ("user".to_string(), "new task".to_string()));
+}
+
+// ── try_recover_plain_tool tests ────────────────────────────────────────────
+
+#[test]
+fn recover_plain_tool_first_line_is_tool_name() {
+    let text = "read_file\nREADME.md";
+    assert_eq!(
+        try_recover_plain_tool(text),
+        Some(StepKind::ToolCall { name: "read_file".to_string(), input: "README.md".to_string() })
+    );
+}
+
+#[test]
+fn recover_plain_tool_shell_with_command() {
+    let text = "shell\nls -la";
+    assert_eq!(
+        try_recover_plain_tool(text),
+        Some(StepKind::ToolCall { name: "shell".to_string(), input: "ls -la".to_string() })
+    );
+}
+
+#[test]
+fn recover_plain_tool_backtick_wrapped_name() {
+    let text = "`shell`\necho hello";
+    assert_eq!(
+        try_recover_plain_tool(text),
+        Some(StepKind::ToolCall { name: "shell".to_string(), input: "echo hello".to_string() })
+    );
+}
+
+#[test]
+fn recover_plain_tool_colon_prefix() {
+    let text = "web_search: Rust async programming";
+    assert_eq!(
+        try_recover_plain_tool(text),
+        Some(StepKind::ToolCall { name: "web_search".to_string(), input: "Rust async programming".to_string() })
+    );
+}
+
+#[test]
+fn recover_plain_tool_unknown_name_returns_none() {
+    let text = "search_paths_by_glob\npattern=\"**/README.md\"";
+    assert_eq!(try_recover_plain_tool(text), None);
+}
+
+#[test]
+fn recover_plain_tool_plain_text_returns_none() {
+    let text = "I will now read the README file to understand its contents.";
+    assert_eq!(try_recover_plain_tool(text), None);
+}
+
+#[test]
+fn recover_plain_tool_git_status_no_input() {
+    let text = "git_status";
+    assert_eq!(
+        try_recover_plain_tool(text),
+        Some(StepKind::ToolCall { name: "git_status".to_string(), input: String::new() })
+    );
 }
 
 #[test]
