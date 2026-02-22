@@ -347,6 +347,13 @@ impl ReActAgent {
                         let observation = tools::dispatch(&name, &input)
                             .await
                             .unwrap_or_else(|e| format!("[error: {e}]"));
+                        // Some models emit <tool name="answer"> instead of <answer> — treat as final answer
+                        if let Some(ans) = observation.strip_prefix("__AGENT_ANSWER__:") {
+                            let _ = tx.send(Some(format!("\n✅ **Answer:**\n{}\n", ans.trim())));
+                            let _ = tx.send(None);
+                            finished = true;
+                            break;
+                        }
                         let _ = tx.send(Some(format!("👁 **Observation:**\n```\n{}\n```\n\n", truncate(&observation, 800))));
                         history.push(("user".to_string(), format!("<observation>{observation}</observation>")));
                         // Advance past this tool block

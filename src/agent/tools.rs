@@ -18,6 +18,8 @@ pub async fn dispatch(tool: &str, input: &str) -> Result<String> {
         "shell"       => shell(input),
         "grep_search" => grep_search(input),
         "web_search"  => web_search(input).await,
+        // Some models wrap their final answer in <tool name="answer"> instead of <answer>
+        "answer" => Ok(format!("__AGENT_ANSWER__:{input}")),
         _ => Ok(format!("[unknown tool: {tool}]")),
     }
 }

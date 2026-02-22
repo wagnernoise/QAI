@@ -607,6 +607,34 @@ fn recover_plain_tool_grep_search() {
     );
 }
 
+// ── answer-as-tool fix tests ──────────────────────────────────────────────────
+
+#[tokio::test]
+async fn tool_dispatch_answer_returns_sentinel() {
+    let result = tools::dispatch("answer", "The task is complete.").await.unwrap();
+    assert!(result.starts_with("__AGENT_ANSWER__:"), "got: {result}");
+    assert!(result.contains("The task is complete."), "got: {result}");
+}
+
+#[tokio::test]
+async fn tool_dispatch_answer_empty_input() {
+    let result = tools::dispatch("answer", "").await.unwrap();
+    assert!(result.starts_with("__AGENT_ANSWER__:"), "got: {result}");
+}
+
+#[test]
+fn parse_steps_tool_named_answer_is_parsed_as_tool_call() {
+    // The LLM emits <tool name="answer">...</tool> — parse_steps sees it as a ToolCall;
+    // the run loop then converts it via the __AGENT_ANSWER__ sentinel.
+    let text = r#"<tool name="answer">The task is done.</tool>"#;
+    let steps = parse_steps(text);
+    assert_eq!(steps.len(), 1);
+    assert!(
+        matches!(&steps[0], StepKind::ToolCall { name, .. } if name == "answer"),
+        "expected ToolCall with name=answer, got: {:?}", steps
+    );
+}
+
 #[test]
 fn agent_run_prior_history_only_deduplicates_user_role() {
     let task = "shared text".to_string();

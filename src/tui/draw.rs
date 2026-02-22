@@ -27,7 +27,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(5), Constraint::Min(0), Constraint::Length(1)])
+        .constraints([Constraint::Length(7), Constraint::Min(0), Constraint::Length(1)])
         .split(area);
 
     draw_header(f, chunks[0]);
