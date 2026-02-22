@@ -1,8 +1,13 @@
+<div align="center">
+  <img src="intellij-plugin/src/main/resources/icons/pluginIcon.svg" width="80" height="80" alt="QAI logo"/>
+
 # QAI — QA Automation AI Agent
 
 A Rust CLI + TUI tool that connects to LLMs (Ollama, OpenAI, Anthropic, xAI, Zen, or any custom endpoint) and runs an
 autonomous QA agent with a ReAct reasoning loop. Chat with models, use Agent Mode to let the AI read/write files and run
 commands, and manage the QA-Bot system prompt — all from a beautiful terminal interface.
+
+</div>
 
 ---
 
@@ -202,6 +207,68 @@ it into any LLM that supports system prompts to use QA-Bot outside the TUI.
 
 ---
 
+## IntelliJ Plugin
+
+QAI ships an optional IntelliJ Platform plugin that embeds `qai-cli` directly inside the IDE as a tool window.
+
+### Plugin requirements
+
+- **Java 25** (or Java 21+) — the Gradle wrapper uses Java from `JAVA_HOME` or the system default.
+- **IntelliJ IDEA** 2024.3 or newer (Community or Ultimate).
+- `qai-cli` built and on your `PATH` (see [Installation](#installation) above).
+
+No separate Gradle installation is needed — the `gradlew` wrapper script is bundled in `intellij-plugin/`.
+
+### Build the plugin
+
+```bash
+cd intellij-plugin
+./gradlew buildPlugin
+```
+
+The distributable ZIP is written to:
+
+```
+intellij-plugin/build/distributions/qai-intellij-plugin-0.1.0.zip
+```
+
+> **Tip:** The first build downloads the IntelliJ SDK (~1 GB). Subsequent builds are fast.
+
+### Install from disk
+
+1. Build the plugin ZIP (see above).
+2. Open IntelliJ IDEA → **Settings** (or **Preferences** on macOS) → **Plugins**.
+3. Click the **⚙** (gear) icon → **Install Plugin from Disk…**
+4. Select `intellij-plugin/build/distributions/qai-intellij-plugin-0.1.0.zip`.
+5. Click **OK** and restart the IDE when prompted.
+
+### Usage
+
+- A **QAI** tool window appears on the right side of the IDE (View → Tool Windows → QAI).
+- If `qai-cli` is on your `PATH`, the tool window launches it automatically and pipes stdin/stdout so you can chat with
+  your models without leaving the IDE.
+- If `qai-cli` is not found, a balloon notification appears with a link to the build instructions.
+
+### Keyboard shortcut
+
+The tool window can be opened/closed with the standard IntelliJ shortcut for tool windows. You can also assign a custom
+shortcut via **Settings → Keymap → search "QAI"**.
+
+### Plugin structure
+
+| Path                                              | Description                                    |
+|---------------------------------------------------|------------------------------------------------|
+| `intellij-plugin/build.gradle.kts`                | Gradle build with IntelliJ Platform plugin 2.x |
+| `intellij-plugin/settings.gradle.kts`             | Gradle settings                                |
+| `intellij-plugin/gradle/wrapper/`                 | Bundled Gradle 9.3 wrapper (no install needed) |
+| `intellij-plugin/src/main/resources/META-INF/plugin.xml` | Plugin registration (tool window, startup) |
+| `intellij-plugin/src/main/resources/icons/`       | Plugin icon (`pluginIcon.svg`)                 |
+| `QaiToolWindowFactory.kt`                         | Embeds `qai-cli` process in a Swing panel      |
+| `QaiStartupActivity.kt`                           | Checks for binary on startup, shows warning    |
+| `QaiBinaryLocator.kt`                             | Finds `qai-cli` on PATH / common locations     |
+
+---
+
 ## Project Structure
 
 | Path                        | Description                                 |
@@ -211,6 +278,7 @@ it into any LLM that supports system prompts to use QA-Bot outside the TUI.
 | `src/lib.rs`                | Public library API                          |
 | `src/agent/`                | ReAct agent loop and tool dispatcher        |
 | `src/tui/`                  | TUI screens, state, drawing, event handling |
+| `intellij-plugin/`          | IntelliJ Platform plugin (Kotlin + Gradle)  |
 | `tests/`                    | Integration and unit tests                  |
 
 ---

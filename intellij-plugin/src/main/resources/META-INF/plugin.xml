@@ -1,0 +1,43 @@
+<idea-plugin>
+    <id>com.qai.plugin</id>
+    <name>QAI - QA Automation AI Agent</name>
+    <version>0.1.0</version>
+    <vendor url="https://github.com/your-org/QAI">QAI</vendor>
+
+    <description><![CDATA[
+        QAI brings the QA Automation AI Agent directly into your IDE.<br><br>
+        <b>Features:</b>
+        <ul>
+          <li>Embedded terminal running <b>qai-cli</b> inside a tool window</li>
+          <li>Chat with AI models (Ollama, OpenAI, Anthropic, xAI, Zen) without leaving the IDE</li>
+          <li>ReAct agent mode: the agent can read, write, and edit files in your project</li>
+          <li>Automatic detection of the qai-cli binary with a helpful notification if missing</li>
+        </ul>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+
+        <!-- Tool window -->
+        <toolWindow
+            id="QAI"
+            displayName="QAI"
+            anchor="right"
+            factoryClass="com.qai.plugin.QaiToolWindowFactory"
+            icon="/icons/pluginIcon.svg"
+        />
+
+        <!-- Startup check for qai-cli binary -->
+        <postStartupActivity
+            implementation="com.qai.plugin.QaiStartupActivity"
+        />
+
+        <!-- Notification group for missing-binary warnings -->
+        <notificationGroup
+            id="QAI Notifications"
+            displayType="BALLOON"
+        />
+
+    </extensions>
+</idea-plugin>

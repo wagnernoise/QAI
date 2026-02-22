@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+  <!-- Background circle -->
+  <circle cx="20" cy="20" r="19" fill="#1e1e2e" stroke="#7c3aed" stroke-width="2"/>
+  <!-- Q letter -->
+  <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle"
+        font-family="monospace" font-size="22" font-weight="bold" fill="#a78bfa">Q</text>
+  <!-- Small AI dot accent -->
+  <circle cx="27" cy="27" r="4" fill="#7c3aed"/>
+  <text x="27" y="30" dominant-baseline="middle" text-anchor="middle"
+        font-family="monospace" font-size="5" font-weight="bold" fill="#ffffff">AI</text>
+</svg>
