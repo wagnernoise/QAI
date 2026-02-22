@@ -115,7 +115,7 @@ pub fn parse_step(text: &str) -> Option<StepKind> {
 ///   tool_name\nparam=value\n...
 pub fn try_recover_plain_tool(text: &str) -> Option<StepKind> {
     const KNOWN_TOOLS: &[&str] = &[
-        "read_file", "write_file", "edit_file", "shell", "web_search",
+        "read_file", "write_file", "edit_file", "shell", "grep_search", "web_search",
         "git_status", "git_diff", "git_add", "git_commit", "git_log",
     ];
 
@@ -241,6 +241,7 @@ impl ReActAgent {
               write_file   — create/overwrite a file. Input: path on first line, then full content\n\
               edit_file    — search-and-replace in a file. Input: path\\n<<<\\nsearch\\n===\\nreplacement\\n>>>\n\
               shell        — run a shell command. Input: the command string\n\
+              grep_search  — search file contents by regex. Input: pattern on first line, path on second (optional, default .), file glob on third (optional, e.g. *.rs)\n\
               web_search   — search the web. Input: search query\n\
               git_status   — show git status. Input: (empty)\n\
               git_diff     — show git diff. Input: (empty or path)\n\

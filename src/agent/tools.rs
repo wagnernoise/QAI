@@ -16,6 +16,7 @@ pub async fn dispatch(tool: &str, input: &str) -> Result<String> {
         "git_commit"  => git_commit(input),
         "git_log"     => git_log(input),
         "shell"       => shell(input),
+        "grep_search" => grep_search(input),
         "web_search"  => web_search(input).await,
         _ => Ok(format!("[unknown tool: {tool}]")),
     }
@@ -164,6 +165,51 @@ fn git_run(args: &[&str], workdir: &str) -> Result<String> {
             Ok(if combined.is_empty() { "(no output)".to_string() } else { combined })
         }
         Err(e) => Ok(format!("[git error: {e}]")),
+    }
+}
+
+/// Search file contents using a regex pattern.
+/// Input format: `<pattern>\n<path>` (path is optional, defaults to `.`)
+/// Optionally add a third line with a file glob filter, e.g. `*.rs`
+fn grep_search(input: &str) -> Result<String> {
+    let input = input.trim_start();
+    let mut lines = input.splitn(3, '\n');
+    let pattern = lines.next().unwrap_or("").trim();
+    let path = lines.next().unwrap_or(".").trim();
+    let path = if path.is_empty() { "." } else { path };
+    let glob = lines.next().unwrap_or("").trim();
+
+    if pattern.is_empty() {
+        return Ok("[grep_search error: pattern must not be empty]".to_string());
+    }
+
+    let mut cmd = Command::new("grep");
+    cmd.args(["-rn", "--color=never", pattern, path]);
+    if !glob.is_empty() {
+        cmd.arg(format!("--include={glob}"));
+    }
+
+    match cmd.output() {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+            if !stderr.is_empty() {
+                return Ok(format!("[grep_search error: {stderr}]"));
+            }
+            if stdout.is_empty() {
+                Ok("[grep_search: no matches found]".to_string())
+            } else {
+                // Limit output to 200 lines to avoid flooding the context
+                let lines: Vec<&str> = stdout.lines().take(200).collect();
+                let truncated = lines.len() < stdout.lines().count();
+                let mut result = lines.join("\n");
+                if truncated {
+                    result.push_str("\n[... output truncated to 200 lines]");
+                }
+                Ok(result)
+            }
+        }
+        Err(e) => Ok(format!("[grep_search error: {e}]")),
     }
 }
 

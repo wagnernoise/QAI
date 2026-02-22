@@ -556,6 +556,57 @@ fn recover_plain_tool_git_status_no_input() {
     );
 }
 
+// ── grep_search tool tests ───────────────────────────────────────────────────
+
+#[tokio::test]
+async fn tool_grep_search_finds_match() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("hello.txt");
+    std::fs::write(&path, "hello world\nfoo bar\nhello again\n").unwrap();
+    let input = format!("hello\n{}", dir.path().display());
+    let result = tools::dispatch("grep_search", &input).await.unwrap();
+    assert!(result.contains("hello"), "got: {result}");
+}
+
+#[tokio::test]
+async fn tool_grep_search_no_match_returns_message() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("empty.txt");
+    std::fs::write(&path, "nothing here\n").unwrap();
+    let input = format!("ZZZNOMATCH\n{}", dir.path().display());
+    let result = tools::dispatch("grep_search", &input).await.unwrap();
+    assert_eq!(result, "[grep_search: no matches found]");
+}
+
+#[tokio::test]
+async fn tool_grep_search_empty_pattern_returns_error() {
+    let result = tools::dispatch("grep_search", "").await.unwrap();
+    assert!(result.contains("[grep_search error"), "got: {result}");
+}
+
+#[tokio::test]
+async fn tool_grep_search_with_glob_filter() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("a.rs"), "fn main() {}\n").unwrap();
+    std::fs::write(dir.path().join("b.txt"), "fn main() {}\n").unwrap();
+    let input = format!("fn main\n{}\n*.rs", dir.path().display());
+    let result = tools::dispatch("grep_search", &input).await.unwrap();
+    assert!(result.contains("a.rs"), "got: {result}");
+    assert!(!result.contains("b.txt"), "got: {result}");
+}
+
+#[test]
+fn recover_plain_tool_grep_search() {
+    let text = "grep_search\nfn main\nsrc\n*.rs";
+    assert_eq!(
+        try_recover_plain_tool(text),
+        Some(StepKind::ToolCall {
+            name: "grep_search".to_string(),
+            input: "fn main\nsrc\n*.rs".to_string(),
+        })
+    );
+}
+
 #[test]
 fn agent_run_prior_history_only_deduplicates_user_role() {
     let task = "shared text".to_string();
