@@ -9,7 +9,7 @@ impl App {
 
     /// Returns the currently selected provider based on provider_index.
     pub fn selected_provider(&self) -> Provider {
-        Provider::all()[self.provider_index].clone()
+        Provider::all()[self.provider_index]
     }
 
     /// Returns the model name to use: typed override, or provider default.

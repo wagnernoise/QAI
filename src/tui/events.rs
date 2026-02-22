@@ -114,7 +114,13 @@ async fn event_loop(
                     match mouse.kind {
                         MouseEventKind::ScrollUp => {
                             if app.screen == Screen::Chat {
-                                app.chat_scroll = app.chat_scroll.saturating_sub(3);
+                                // Start from effective position (bottom when auto-scrolling)
+                                let current = if app.chat_scroll_manual {
+                                    app.chat_scroll.min(app.conv_max_scroll)
+                                } else {
+                                    app.conv_max_scroll
+                                };
+                                app.chat_scroll = current.saturating_sub(3);
                                 app.chat_scroll_manual = true;
                             } else if app.screen == Screen::Show {
                                 app.scroll_offset = app.scroll_offset.saturating_sub(3);
@@ -122,7 +128,13 @@ async fn event_loop(
                         }
                         MouseEventKind::ScrollDown => {
                             if app.screen == Screen::Chat {
-                                app.chat_scroll = app.chat_scroll.saturating_add(3);
+                                // Start from effective position (bottom when auto-scrolling)
+                                let current = if app.chat_scroll_manual {
+                                    app.chat_scroll.min(app.conv_max_scroll)
+                                } else {
+                                    app.conv_max_scroll
+                                };
+                                app.chat_scroll = current.saturating_add(3).min(app.conv_max_scroll);
                                 app.chat_scroll_manual = true;
                             } else if app.screen == Screen::Show {
                                 app.scroll_offset = app.scroll_offset.saturating_add(3);

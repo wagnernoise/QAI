@@ -151,7 +151,8 @@ pub async fn handle_chat_key(
             state_manager.scroll_down();
         }
         KeyCode::Up => match app.chat_focus {
-            ChatFocus::Conversation => {
+            ChatFocus::Conversation | ChatFocus::Message | ChatFocus::Token
+            | ChatFocus::CustomUrl => {
                 state_manager.scroll_up();
             }
             ChatFocus::ProviderList => {
@@ -166,11 +167,10 @@ pub async fn handle_chat_key(
                     app.model_input = m.clone();
                 }
             }
-            ChatFocus::Message => { handle_text_input_key(&mut app.message_input, *key, app.input_inner_width); }
-            _ => {}
         },
         KeyCode::Down => match app.chat_focus {
-            ChatFocus::Conversation => {
+            ChatFocus::Conversation | ChatFocus::Message | ChatFocus::Token
+            | ChatFocus::CustomUrl => {
                 state_manager.scroll_down();
             }
             ChatFocus::ProviderList => {
@@ -184,8 +184,6 @@ pub async fn handle_chat_key(
                     app.model_input = m.clone();
                 }
             }
-            ChatFocus::Message => { handle_text_input_key(&mut app.message_input, *key, app.input_inner_width); }
-            _ => {}
         },
         KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
             if app.chat_focus == ChatFocus::Message {
