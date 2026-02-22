@@ -1,4 +1,4 @@
-use qai_cli::agent::{parse_step, parse_steps, try_recover_plain_tool, StepKind, ReActAgent, MAX_STEPS, tools};
+use qai_cli::agent::{parse_step, parse_steps, try_recover_plain_tool, StepKind, ReActAgent, tools};
 use qai_cli::tui::providers::Provider;
 use tokio::sync::mpsc;
 
@@ -131,13 +131,6 @@ fn parse_steps_plain_text_returns_empty() {
     assert!(parse_steps("no tags here at all").is_empty());
 }
 
-// ── MAX_STEPS constant ────────────────────────────────────────────────────────
-
-#[test]
-fn max_steps_is_reasonable() {
-    assert!(MAX_STEPS >= 5, "MAX_STEPS should be at least 5");
-    assert!(MAX_STEPS <= 50, "MAX_STEPS should not be excessively large");
-}
 
 // ── ReActAgent construction ───────────────────────────────────────────────────
 
@@ -152,26 +145,13 @@ fn react_agent_new_stores_fields() {
     );
     assert_eq!(agent.model, "gemma3");
     assert_eq!(agent.system_prompt, "system prompt");
-    assert_eq!(agent.max_steps, MAX_STEPS);
     assert_eq!(agent.provider, Provider::Ollama);
 }
 
-#[test]
-fn react_agent_default_max_steps() {
-    let agent = ReActAgent::new(
-        Provider::OpenAI,
-        "token".to_string(),
-        "".to_string(),
-        "gpt-4o".to_string(),
-        "sys".to_string(),
-    );
-    assert_eq!(agent.max_steps, MAX_STEPS);
-}
 
 // ── ReActAgent loop logic (mock via channel) ──────────────────────────────────
 
 /// Helper: run the agent with a mock LLM that always returns `response`.
-/// We override max_steps to 1 to avoid infinite loops in tests.
 async fn run_agent_with_mock_response(response: &str) -> Vec<String> {
     // We can't easily mock the HTTP call, so we test the channel/token flow
     // by directly calling parse_step and simulating what the loop would do.
@@ -421,14 +401,12 @@ fn react_agent_run_signature_accepts_prior_history() {
         "llama3".to_string(),
         "sys".to_string(),
     );
-    assert_eq!(agent.max_steps, qai_cli::agent::MAX_STEPS);
+    assert_eq!(agent.model, "llama3");
 }
 
 #[tokio::test]
 async fn agent_run_with_empty_prior_history_sends_answer() {
-    // Mock: build an agent that will hit max_steps (no real LLM) — just verify
-    // the channel receives None (completion signal) eventually.
-    // We use a tiny max_steps override via a direct struct build.
+    // Verify the prior_history dedup logic and channel completion signal.
     use tokio::sync::mpsc;
     let (tx, mut rx) = mpsc::unbounded_channel::<Option<String>>();
 

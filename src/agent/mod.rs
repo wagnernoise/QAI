@@ -9,8 +9,6 @@ use crate::tui::providers::Provider;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-/// Maximum number of Reason→Act→Observe iterations before giving up.
-pub const MAX_STEPS: usize = 15;
 
 // ── ReAct step types ──────────────────────────────────────────────────────────
 
@@ -197,7 +195,6 @@ pub struct ReActAgent {
     pub custom_url: String,
     pub model: String,
     pub system_prompt: String,
-    pub max_steps: usize,
 }
 
 impl ReActAgent {
@@ -214,7 +211,6 @@ impl ReActAgent {
             custom_url,
             model,
             system_prompt,
-            max_steps: MAX_STEPS,
         }
     }
 
@@ -277,8 +273,10 @@ impl ReActAgent {
             .collect();
         history.push(("user".to_string(), task.clone()));
 
-        for step in 0..self.max_steps {
-            let _ = tx.send(Some(format!("\n---\n🔄 **Step {}**\n", step + 1)));
+        let mut step = 0usize;
+        loop {
+            step += 1;
+            let _ = tx.send(Some(format!("\n---\n🔄 **Step {}**\n", step)));
 
             let llm_response = self
                 .call_llm(&react_system, &history)
@@ -376,8 +374,6 @@ impl ReActAgent {
             }
         }
 
-        let _ = tx.send(Some("\n⚠️ **Max steps reached.** Stopping agent loop.\n".to_string()));
-        let _ = tx.send(None);
         Ok(())
     }
 
