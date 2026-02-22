@@ -7,6 +7,7 @@ A Rust CLI + TUI tool that connects to LLMs (Ollama, OpenAI, Anthropic, xAI, Zen
 autonomous QA agent with a ReAct reasoning loop. Chat with models, use Agent Mode to let the AI read/write files and run
 commands, and manage the QA-Bot system prompt — all from a beautiful terminal interface.
 
+**Just a fun project to explore LLM agents and TUI design in Rust. Not production-ready, but feel free to experiment and contribute!**
 </div>
 
 ---
