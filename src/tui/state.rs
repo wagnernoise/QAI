@@ -5,12 +5,6 @@ use std::time::Instant;
 use tokio_util::sync::CancellationToken;
 
 pub mod app_logic;
-mod chat_state;
-mod tools_state;
-mod validate_state;
-mod show_state;
-mod info_state;
-mod menu_state;
 
 use crate::tui::api::load_api_token;
 use crate::tui::input::TextInput;

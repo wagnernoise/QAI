@@ -231,7 +231,9 @@ pub async fn handle_chat_key(
                     let custom_url = app.custom_url.clone();
                     let model = app.active_model();
                     let system_prompt = app.prompt_content.clone();
-                    let history: Vec<(String, String)> = app.messages.clone();
+                    let task = app.messages.last().map(|(_, c)| c.clone()).unwrap_or_default();
+                    let prior: Vec<(String, String)> = app.messages[..app.messages.len().saturating_sub(1)].to_vec();
+                    let history = app.messages.clone();
                     let tx = stream_tx.clone();
                     let cancel = app.cancel_token.clone();
                     let agent_mode = app.agent_mode;
@@ -240,9 +242,6 @@ pub async fn handle_chat_key(
                             let agent = ReActAgent::new(
                                 provider, token, custom_url, model, system_prompt,
                             );
-                            // last message is the current user task; pass full history for memory
-                            let task = history.last().map(|(_, c)| c.clone()).unwrap_or_default();
-                            let prior = history[..history.len().saturating_sub(1)].to_vec();
                             if let Err(e) = agent.run(task, prior, tx.clone()).await {
                                 let _ = tx.send(Some(format!("\n[Agent error: {e}]")));
                                 let _ = tx.send(None);

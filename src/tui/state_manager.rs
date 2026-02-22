@@ -115,9 +115,19 @@ impl StateManager {
     }
 
     // Scroll management
+    /// Returns the current effective scroll position (accounts for auto-scroll mode).
+    fn effective_chat_scroll(&self) -> u16 {
+        if self.app.chat_scroll_manual {
+            self.app.chat_scroll.min(self.app.conv_max_scroll)
+        } else {
+            self.app.conv_max_scroll
+        }
+    }
+
     pub fn scroll_up(&mut self) {
         if self.app.screen == Screen::Chat {
-            self.app.chat_scroll = self.app.chat_scroll.saturating_sub(3);
+            let current = self.effective_chat_scroll();
+            self.app.chat_scroll = current.saturating_sub(3);
             self.app.chat_scroll_manual = true;
         } else if self.app.screen == Screen::Show {
             self.app.scroll_offset = self.app.scroll_offset.saturating_sub(1);
@@ -126,7 +136,8 @@ impl StateManager {
 
     pub fn scroll_down(&mut self) {
         if self.app.screen == Screen::Chat {
-            self.app.chat_scroll = self.app.chat_scroll.saturating_add(3);
+            let current = self.effective_chat_scroll();
+            self.app.chat_scroll = current.saturating_add(3).min(self.app.conv_max_scroll);
             self.app.chat_scroll_manual = true;
         } else if self.app.screen == Screen::Show {
             self.app.scroll_offset = self.app.scroll_offset.saturating_add(1);
@@ -135,14 +146,16 @@ impl StateManager {
 
     pub fn page_up(&mut self) {
         if self.app.screen == Screen::Chat {
-            self.app.chat_scroll = self.app.chat_scroll.saturating_sub(5);
+            let current = self.effective_chat_scroll();
+            self.app.chat_scroll = current.saturating_sub(5);
             self.app.chat_scroll_manual = true;
         }
     }
 
     pub fn page_down(&mut self) {
         if self.app.screen == Screen::Chat {
-            self.app.chat_scroll = self.app.chat_scroll.saturating_add(5);
+            let current = self.effective_chat_scroll();
+            self.app.chat_scroll = current.saturating_add(5).min(self.app.conv_max_scroll);
             self.app.chat_scroll_manual = true;
         }
     }

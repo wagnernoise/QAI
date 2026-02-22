@@ -1,6 +1,6 @@
 // ── Model providers ──────────────────────────────────────────────────────────
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Provider {
     OpenAI,
     Anthropic,
@@ -21,8 +21,8 @@ impl Provider {
             Provider::Custom    => "Custom endpoint",
         }
     }
-    pub fn all() -> Vec<Provider> {
-        vec![
+    pub fn all() -> &'static [Provider] {
+        &[
             Provider::OpenAI,
             Provider::Anthropic,
             Provider::XAI,
