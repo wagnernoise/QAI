@@ -6,13 +6,13 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKi
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use crate::tui::state_manager::StateManager;
-use crate::tui::providers::Provider;
-use crate::tui::api::{save_api_token, fetch_ollama_models, stream_message, StreamRequest};
 use crate::agent::ReActAgent;
-use crate::tui::input::{TextInput, handle_text_input_key};
-use arboard::Clipboard;
+use crate::tui::api::{fetch_ollama_models, stream_message, StreamRequest};
+use crate::tui::input::handle_text_input_key;
+use crate::tui::providers::Provider;
+use crate::tui::state_manager::StateManager;
 use crate::{App, ChatFocus, Screen};
+use arboard::Clipboard;
 
 pub async fn handle_menu_key(
     app: &mut App,
@@ -47,7 +47,6 @@ pub async fn handle_menu_key(
 }
 
 pub async fn handle_info_key(
-    app: &mut App,
     key: &KeyEvent,
     state_manager: &mut StateManager,
 ) -> Result<()> {
@@ -345,7 +344,6 @@ pub async fn handle_chat_key(
 }
 
 pub async fn handle_validate_key(
-    app: &mut App,
     key: &KeyEvent,
     state_manager: &mut StateManager,
 ) -> Result<()> {
