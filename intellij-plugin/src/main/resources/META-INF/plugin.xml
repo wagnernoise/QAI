@@ -8,10 +8,11 @@
         QAI brings the QA Automation AI Agent directly into your IDE.<br><br>
         <b>Features:</b>
         <ul>
-          <li>Embedded terminal running <b>qai-cli</b> inside a tool window</li>
           <li>Chat with AI models (Ollama, OpenAI, Anthropic, xAI, Zen) without leaving the IDE</li>
-          <li>ReAct agent mode: the agent can read, write, and edit files in your project</li>
-          <li>Automatic detection of the qai-cli binary with a helpful notification if missing</li>
+          <li>Provider and mode (Chat / Agent) selector in the tool window toolbar</li>
+          <li>Persistent API token and Ollama URL via Settings → Tools → QAI</li>
+          <li>Conversation memory across turns within a session</li>
+          <li>Ctrl+Enter to send, Clear button to reset the conversation</li>
         </ul>
     ]]></description>
 
@@ -19,10 +20,22 @@
 
     <extensions defaultExtensionNs="com.intellij">
 
+        <!-- Persistent settings service (application-level) -->
+        <applicationService
+            serviceImplementation="com.qai.plugin.QaiSettings"
+        />
+
+        <!-- Settings → Tools → QAI configurable page -->
+        <applicationConfigurable
+            parentId="tools"
+            id="com.qai.plugin.QaiSettingsConfigurable"
+            displayName="QAI"
+            instance="com.qai.plugin.QaiSettingsConfigurable"
+        />
+
         <!-- Tool window -->
         <toolWindow
             id="QAI"
-            displayName="QAI"
             anchor="right"
             factoryClass="com.qai.plugin.QaiToolWindowFactory"
             icon="/icons/pluginIcon.svg"
