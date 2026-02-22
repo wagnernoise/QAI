@@ -373,8 +373,6 @@ impl ReActAgent {
                 return Ok(());
             }
         }
-
-        Ok(())
     }
 
     async fn call_llm(&self, system: &str, history: &[(String, String)]) -> Result<String> {

@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use std::time::Instant;
 use tokio_util::sync::CancellationToken;
 
+pub mod app_logic;
+
 use crate::tui::input::TextInput;
 use crate::tui::providers::Provider;
 use crate::tui::api::load_api_token;
@@ -136,25 +138,6 @@ impl App {
             input_scroll: 0,
             input_inner_width: 60,
             agent_mode: false,
-        }
-    }
-
-    /// Returns the current message input text as a single string.
-    pub fn message_input_text(&self) -> String {
-        self.message_input.value.clone()
-    }
-
-    pub fn selected_provider(&self) -> Provider {
-        Provider::all().remove(self.provider_index)
-    }
-
-    /// Returns the model name to use: typed override, or provider default.
-    pub fn active_model(&self) -> String {
-        let m = self.model_input.trim();
-        if m.is_empty() {
-            self.selected_provider().default_model().to_string()
-        } else {
-            m.to_string()
         }
     }
 }
