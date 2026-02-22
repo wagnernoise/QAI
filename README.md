@@ -1,338 +1,237 @@
-# QAI - QA Automation AI Agents
+k
+# QAI — QA Automation AI Agent
 
-A collection of AI agents specialized in QA test automation. Built to assist QA automation engineers working with modern
-testing frameworks.
+A Rust CLI + TUI tool that connects to LLMs (Ollama, OpenAI, Anthropic, xAI, Zen, or any custom endpoint) and runs an autonomous QA agent with a ReAct reasoning loop. Chat with models, use Agent Mode to let the AI read/write files and run commands, and manage the QA-Bot system prompt — all from a beautiful terminal interface.
 
-## What Is This?
-
-QAI is a **prompt-based AI agent**. The agent lives in the file `qa-agent-system-prompt.md`, which you load as a system
-prompt into any LLM that supports tool-calling (function-calling). The LLM then behaves as **QA-Bot**, an autonomous QA
-automation assistant. An optional Rust CLI is included to manage, copy, and validate the prompt.
-
-No server and no runtime dependencies are required to use the prompt — just a system prompt and an LLM.
-
-## QA-Bot
-
-Autonomous AI agent that helps QA automation engineers with day-to-day test automation tasks.
-
-### Features
-
-- **Test creation** — e2e, component, and API tests from scratch or from requirements
-- **Flaky test debugging** — root cause analysis, retry strategies, wait improvements
-- **Test refactoring** — page objects, fixtures, data-driven patterns
-- **Best practices** — locators (role/text/testid), assertions, auto-wait
-- **Multi-language** — JS/TS, Python, Java, C#
-- **CI/CD** — parallel execution, reporter configuration
-- **BDD/Gherkin** — auto-detects BDD projects and prioritizes Gherkin standards with Cucumber, Playwright-BDD, Serenity,
-  pytest-bdd
+---
 
 ## Installation
 
-### Prerequisites
-
-- Access to an LLM with **tool-calling / function-calling** support. Compatible platforms include:
-    - [OpenAI API](https://platform.openai.com/) (GPT-4o, GPT-4-turbo, etc.)
-    - [Anthropic API](https://www.anthropic.com/) (Claude 3.5 Sonnet, Claude 4, etc.)
-    - [xAI API](https://x.ai/) (Grok)
-    - [Google Gemini API](https://ai.google.dev/)
-    - Any local model with tool-calling support (e.g.,
-      via [Ollama](https://ollama.com/), [LM Studio](https://lmstudio.ai/))
-    - IDE-integrated AI assistants that accept custom system prompts (e.g., JetBrains AI, Cursor, Windsurf, Continue)
-
-- A test project (or a new directory where you want to create one)
-
-### Steps
-
-1. **Clone this repository:**
-   ```bash
-   git clone https://github.com/your-username/QAI.git
-   cd QAI
-   ```
-
-2. **Copy the system prompt** into your LLM platform of choice:
-    - Open `qa-agent-system-prompt.md`
-    - Copy its entire contents
-    - Paste it as the **system prompt** (also called "system message" or "instructions") in your LLM client
-
-   > **Tip:** Some platforms let you upload a file directly as the system prompt — use that if available.
-
-3. **Configure tools** — QA-Bot expects the LLM to have access to these tool categories:
-    - **File operations** — open, create, edit, search files in your project
-    - **Terminal / bash** — run shell commands (`npm test`, `npx playwright test`, etc.)
-    - **Web search** — look up documentation or current framework info
-
-   For the exact tool definitions and policies, see `qa-agent-system-prompt.md`.
-
-   How you provide these depends on your platform:
-    - **API-based setups**: Define tools/functions in your API request (see your provider's function-calling docs)
-    - **IDE assistants** (Cursor, JetBrains AI, Continue): Tools are usually built-in — just set the system prompt
-    - **Chat UIs** (ChatGPT, Claude.ai): Limited tool access; the agent will still give guidance but can't execute
-      commands directly
-
-4. **Done.** Start chatting with the agent about your test automation tasks.
-
-### Optional CLI (Rust)
-
-Build and install the CLI:
-
 ```bash
+git clone https://github.com/your-org/QAI.git
+cd QAI
 cargo build --release
 sudo cp ./target/release/qai-cli /usr/local/bin/qai-cli
 ```
 
-Run without installing:
-
-```bash
-cargo run -- --help
-```
-
-#### TUI mode (default)
-
-Running `qai-cli` without a subcommand launches the full-screen TUI:
+Then launch the TUI:
 
 ```bash
 qai-cli
 ```
 
-The TUI provides a navigable menu with these screens:
+---
 
-| Screen       | Description                                      |
-|--------------|--------------------------------------------------|
-| Info         | Prompt path, file size, version                  |
-| Show Prompt  | Scrollable view of the system prompt             |
-| Validate     | Check that required sections are present         |
-| Tools        | List expected tool categories                    |
-| Chat         | Send messages to an LLM via API                  |
+## TUI Overview
 
-**Keyboard shortcuts — general:**
+The TUI has five screens, navigated from the main menu:
 
-| Key            | Action                                      |
-|----------------|---------------------------------------------|
-| `↑` / `↓`      | Navigate menu / lists                       |
-| `Enter`        | Select item                                 |
-| `q` / `Esc`    | Go back / quit                              |
-| `Tab`          | Next field (Chat screen)                    |
-| `Shift+Tab`    | Previous field (Chat screen)                |
-| `j` / `k`      | Scroll up/down (Show screen)                |
+| Screen | Description |
+|--------|-------------|
+| **Info** | System info and current configuration |
+| **Show** | Display the full QA-Bot system prompt |
+| **Validate** | Validate the system prompt file |
+| **Tools** | Browse available LLM providers with details |
+| **Chat** | Interactive chat with any LLM provider |
 
-**Keyboard shortcuts — Chat screen:**
+### General Keyboard Shortcuts
 
-| Key                        | Action                                              |
-|----------------------------|-----------------------------------------------------|
-| `Tab` / `Shift+Tab`        | Cycle focus: Provider → Model → Token → Message → Conversation |
-| `↑` / `↓`                  | Navigate provider/model list; scroll conversation when focused |
-| `Enter`                    | Confirm selection / send message                    |
-| `Shift+Enter` / `Ctrl+J`   | Insert newline in message box                       |
-| `PageUp` / `PageDown`      | Scroll conversation 5 lines                         |
-| `End`                      | Jump to bottom of conversation (resume auto-scroll) |
-| `Esc` (once)               | Show stop-inference hint                            |
-| `Esc` (twice, within 1 s)  | Cancel active inference / stop streaming            |
-| `Ctrl+C` / `Cmd+C` (macOS) | Copy selected conversation text to clipboard        |
-| `F2`                       | Toggle Agent Mode on/off                            |
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` or `j` / `k` | Navigate menus |
+| `Enter` | Select / confirm |
+| `q` | Go back / quit |
+| `Esc` | Go back to menu |
 
-#### Chat screen — providers & API token
+---
 
-The Chat screen supports the following LLM providers:
+## Chat Screen
 
-| Provider          | Default model                      | API endpoint                                        |
-|-------------------|------------------------------------|-----------------------------------------------------|
-| OpenAI            | `gpt-4o`                           | `https://api.openai.com/v1/chat/completions`        |
-| Anthropic         | `claude-3-5-sonnet-20241022`       | `https://api.anthropic.com/v1/messages`             |
-| xAI (Grok)        | `grok-3`                           | `https://api.x.ai/v1/chat/completions`              |
-| Ollama (local)    | fetched dynamically from `/api/tags` | `http://localhost:11434`                           |
-| Zen (OpenCode)    | `anthropic/claude-sonnet-4-5`      | `https://api.opencode.ai/v1/chat/completions`       |
-| Custom endpoint   | user-defined                       | any OpenAI-compatible URL                           |
+### Connecting to a Provider
 
-**Connecting to a provider:**
+1. Open the TUI and select **Chat**
+2. Choose a provider from the list (`↑`/`↓`, then `Enter`)
+3. For **Ollama**: models are fetched automatically from your local instance
+4. For cloud providers: enter your API token (saved automatically to `~/.config/qai/config.toml`)
+5. Select a model and start chatting
 
-1. **Tab** to the **Provider** list and select one with `↑`/`↓`, then press `Enter`.
-2. For **Ollama**, available models are fetched automatically — select one from the list.
-3. For other providers, **Tab** to the **API Token** field and enter your key.
-   - The token is saved automatically to `~/.config/qai/config.toml` and reloaded on next launch.
-   - A `✓ API token saved` confirmation appears in the status bar for ~3 seconds.
-4. **Tab** to the **Message** field, type your prompt, and press `Enter` to send.
+### Supported Providers
 
-The QA-Bot system prompt is automatically pre-loaded as the system message for every conversation.
+| Provider | Default Model | API Endpoint |
+|----------|--------------|--------------|
+| OpenAI | `gpt-4o` | `https://api.openai.com/v1/chat/completions` |
+| Anthropic | `claude-opus-4-5` | `https://api.anthropic.com/v1/messages` |
+| xAI | `grok-4` | `https://api.x.ai/v1/chat/completions` |
+| Ollama | `llama3.2` | `http://localhost:11434/api/chat` |
+| Zen | `anthropic/claude-sonnet-4-5` | `https://api.opencode.ai/v1/chat/completions` |
+| Custom | *(user-defined)* | *(user-defined)* |
 
-**Streaming & real-time updates:**
-- Responses stream token-by-token in real time.
-- A blinking `⏳ Thinking...` indicator appears in the conversation while the model is responding.
-- The conversation auto-scrolls to the latest token; press `End` to re-enable auto-scroll after manual scrolling.
+### Chat Keyboard Shortcuts
 
-**Message box:**
-- Supports multi-line input — use `Shift+Enter` or `Ctrl+J` to insert a newline.
-- The box grows vertically (8 rows) with word-wrap and a scrollbar for long prompts.
-- Use arrow keys to move the cursor; `Home`/`End` jump to line start/end.
+| Key | Action |
+|-----|--------|
+| `Tab` | Cycle focus: Provider → Model → Token → Message → Conversation |
+| `Enter` | Send message |
+| `Shift+Enter` or `Ctrl+J` | Insert newline in message box |
+| `↑` / `↓` | Navigate lists or scroll conversation (when focused) |
+| `PageUp` / `PageDown` | Scroll conversation 5 lines |
+| `End` | Jump to bottom and resume auto-scroll |
+| `Esc` (×1) | Show stop hint |
+| `Esc` (×2, within 1s) | Cancel active inference / stop streaming |
+| `Ctrl+C` (Linux/Win) / `Cmd+C` (macOS) | Copy selected conversation text |
+| `F2` | Toggle Agent Mode on/off |
 
-**Conversation scrolling:**
-- Press `Tab` to focus the Conversation panel (highlighted in yellow).
-- Use `↑`/`↓` to scroll line by line, `PageUp`/`PageDown` for 5-line jumps.
-- A scrollbar on the right edge shows your position; click or drag it with the mouse.
-- Click and drag to select text; press `Ctrl+C` (Linux/Windows) or `Cmd+C` (macOS) to copy the selection.
+### Conversation Features
 
-#### Agent Mode (ReAct loop)
+- **Auto-scroll**: conversation follows new tokens in real time as the model streams
+- **Manual scroll**: `Tab` to focus the Conversation panel, then `↑`/`↓` or `PageUp`/`PageDown`; scrollbar visible on the right edge
+- **Mouse scroll**: trackpad/mouse wheel scrolls the conversation
+- **Click scrollbar**: click or drag the scrollbar to jump to any position
+- **Text selection**: click and drag to select text; copy with `Ctrl+C` / `Cmd+C`
+- **Thinking indicator**: a blinking `⏳ Thinking...` appears while the model is generating
 
-The Chat screen supports an optional **Agent Mode** that routes your messages through a
-[ReAct](https://arxiv.org/abs/2210.03629) (Reason → Act → Observe) loop instead of a plain
-chat completion.
+### Message Box Features
 
-**How to enable:**
-- Press **F2** in the Chat screen to toggle Agent Mode on/off.
-- The footer bar shows `🤖 Agent Mode ON` when active.
+- **Multi-line input**: `Shift+Enter` or `Ctrl+J` to add new lines
+- **Cursor navigation**: `←`/`→`/`Home`/`End` move the cursor; `↑`/`↓` move between wrapped lines
+- **Auto-scroll**: the message box scrolls to keep the cursor visible for long prompts
+- **Scrollbar**: visible on the right edge when content overflows; click/drag to scroll
 
-**How it works:**
+### API Token Persistence
 
-1. Your message is sent to the LLM with a ReAct system prompt.
-2. The LLM responds with one of three structured tags:
-   - `<think>…</think>` — the agent's reasoning step (shown as 💭 Thought)
-   - `<tool name="TOOL">input</tool>` — a tool call (shown as 🔧 Tool)
-   - `<answer>…</answer>` — the final answer (shown as ✅ Answer)
-3. Tool results are fed back as observations and the loop repeats until an answer is produced
-   or the step limit (10) is reached.
-4. The full conversation history is retained across turns (conversation memory).
+API tokens are saved automatically to `~/.config/qai/config.toml` the moment you type them. A `✓ API token saved` confirmation appears in the status bar. On next launch, the token is loaded automatically — no need to re-enter it.
 
-**Built-in tools:**
+---
 
-| Tool         | Description                                                                 |
-|--------------|-----------------------------------------------------------------------------|
-| `read_file`  | Read a local file by path                                                   |
-| `write_file` | Create or overwrite a file (`path\ncontent`)                                |
-| `edit_file`  | Search-and-replace inside a file (`path\n<<<\nsearch\n===\nreplacement\n>>>`) |
-| `shell`      | Run a shell command and return stdout/stderr                                |
-| `web_search` | Query DuckDuckGo instant-answer API                                         |
-| `git_status` | Run `git status` in the current directory                                   |
-| `git_diff`   | Run `git diff` (optionally with extra args)                                 |
-| `git_add`    | Stage files (`git add <args>`)                                              |
-| `git_commit` | Commit staged changes (`git commit -m "<message>"`)                         |
-| `git_log`    | Show recent commits (`git log --oneline -10`)                               |
+## Agent Mode
 
-**Example conversation in Agent Mode:**
+Press **F2** in the Chat screen to toggle Agent Mode. When enabled, your messages are routed through a **ReAct (Reason → Act → Observe)** loop instead of a plain chat completion.
+
+### How It Works
+
 ```
-You: What Rust version is installed on this machine?
-🤖 💭 Thought: I should run rustc --version to check.
-🔧 Tool: `shell(rustc --version)`
-👁 Observation: rustc 1.85.0 (4d91de4e4 2025-02-17)
-✅ Answer: Rust 1.85.0 is installed.
+User gives a task
+Loop (up to 15 steps):
+  a. Agent THINKS about what to do        → <think>...</think>
+  b. Agent calls a TOOL                   → <tool name="...">input</tool>
+  c. Tool executes and returns a RESULT   → 👁 Observation
+  d. Agent observes and decides next step
+Agent provides final answer               → <answer>...</answer>
 ```
 
-#### CLI (non-TUI) mode
+Each step is streamed into the conversation panel so you can follow the agent's reasoning in real time.
 
-Pass a subcommand or `--no-tui` to skip the TUI:
+### Built-in Tools
+
+| Tool | Description | Input Format |
+|------|-------------|--------------|
+| `read_file` | Read a local file | File path |
+| `write_file` | Create or overwrite a file | `path\ncontent` |
+| `edit_file` | Search-and-replace in a file | `path\n<<<\nsearch\n===\nreplacement\n>>>` |
+| `shell` | Run any shell command | Shell command string |
+| `web_search` | Query DuckDuckGo instant answers | Search query |
+| `git_status` | Show working tree status | *(empty)* |
+| `git_diff` | Show unstaged changes | *(empty)* |
+| `git_add` | Stage files | File path(s) |
+| `git_commit` | Commit staged changes | Commit message |
+| `git_log` | Show recent commits | Optional count (default: 10) |
+
+### Conversation Memory
+
+The agent retains the full conversation history across all turns in a session, giving the LLM context from previous exchanges when reasoning about new tasks.
+
+### Example
+
+```
+You: Refactor README.md to improve clarity
+
+QA-Bot:
+  💭 I'll read the current README first.
+  🔧 read_file → README.md
+  👁 [file contents]
+  💭 I'll rewrite the introduction section.
+  🔧 write_file → README.md
+  👁 File written successfully.
+  ✅ Done. README.md has been updated.
+```
+
+---
+
+## CLI Mode (Non-TUI)
+
+Pass a subcommand to skip the TUI entirely — useful for scripting:
 
 ```bash
-qai-cli info
-qai-cli show
-qai-cli copy ./qa-agent-system-prompt.md --force
-qai-cli validate
-qai-cli tools
+qai-cli info                                      # Show system info
+qai-cli show                                      # Print the system prompt
+qai-cli copy ./qa-agent-system-prompt.md          # Copy prompt to a file
+qai-cli copy ./qa-agent-system-prompt.md --force  # Overwrite if exists
+qai-cli validate                                  # Validate the prompt file
+qai-cli tools                                     # List available tools
 ```
 
-Use `--prompt` to target a different prompt file:
+Use `--no-tui` to suppress the TUI when no subcommand is given:
 
 ```bash
-qai-cli --prompt ./qa-agent-system-prompt.md validate
+qai-cli --no-tui
 ```
 
-## Usage
+---
 
-### Basic workflow
+## QA-Bot System Prompt
 
-1. Open a conversation with the LLM (with the system prompt loaded)
-2. Describe your task — the agent will automatically pick the right mode and start working
+`qa-agent-system-prompt.md` is the authoritative system prompt that defines QA-Bot's behavior, modes, and policies. Load it into any LLM that supports system prompts to use QA-Bot outside the TUI.
 
-**Example — create a test:**
+### QA-Bot Modes (defined in `qa-agent-system-prompt.md`)
 
-```
-Write a Playwright test that verifies the login page rejects invalid credentials
-and shows an appropriate error message.
-```
+| Mode | Purpose |
+|------|---------|
+| `[TEST_CODE]` | Multi-step test writing, BDD, refactoring |
+| `[FAST_TEST]` | Quick single-file edits (1–3 steps) |
+| `[RUN_VERIFY]` | Run tests, collect evidence |
+| `[SETUP]` | Install/configure test frameworks |
+| `[CHAT]` | Quick Q&A about testing |
+| `[ADVANCED_CHAT]` | In-depth test project analysis |
+| `[NICHE]` | Trace analysis, locator forensics |
 
-**Example — fix a flaky test:**
+---
 
-```
-The test in tests/checkout.spec.ts fails intermittently with a timeout on the
-payment confirmation step. Help me fix it.
-```
+## Project Structure
 
-**Example — BDD (auto-detected):**
+| Path | Description |
+|------|-------------|
+| `qa-agent-system-prompt.md` | QA-Bot system prompt (authoritative) |
+| `src/main.rs` | CLI entry point |
+| `src/lib.rs` | Public library API |
+| `src/agent/` | ReAct agent loop and tool dispatcher |
+| `src/tui/` | TUI screens, state, drawing, event handling |
+| `tests/` | Integration and unit tests |
 
-```gherkin
-Feature: Login validation
-  Scenario: Invalid credentials show error
-    Given I am on the login page
-    When I enter invalid credentials
-    And I submit the login form
-    Then an error message is displayed
-```
+---
 
-### Using the `<test_issue_description>` tag
+## Requirements
 
-For structured requests, wrap your task in a tag — this helps the agent parse complex multi-part requests:
+- **Rust** 1.75+ (for building)
+- **LLM provider**: Ollama (local), OpenAI, Anthropic, xAI, Zen, or any OpenAI-compatible endpoint
+- **Ollama** (optional): install from [ollama.com](https://ollama.com) for local model support
 
-```xml
-
-<test_issue_description>
-    Refactor the checkout tests to use page object model.
-    Extract locators into a CheckoutPage class.
-</test_issue_description>
-```
-
-### Setting up a new test project with the agent
-
-You can ask QA-Bot to set up a project from scratch:
-
-```
-Set up a new Playwright project with TypeScript in this directory.
-Include a basic config with Chrome and Firefox, and a sample test.
-```
-
-The agent will enter `[SETUP]` mode and run the necessary commands (`npm init`, `npx playwright install`, etc.).
-
-### Supported Modes
-
-The agent automatically selects the appropriate mode based on your request:
-
-> **Note:** The authoritative mode list is defined in `qa-agent-system-prompt.md` and applies when that prompt is loaded.
-
-| Mode              | Purpose                                                    |
-|-------------------|------------------------------------------------------------|
-| `[TEST_CODE]`     | Multi-step test writing, BDD scenarios, refactoring        |
-| `[FAST_TEST]`     | Quick single-file test edits (1–3 steps)                   |
-| `[RUN_VERIFY]`    | Run tests and collect evidence                             |
-| `[SETUP]`         | Install/configure Playwright, Selenium, BDD frameworks     |
-| `[CHAT]`          | Quick Q&A about testing                                    |
-| `[ADVANCED_CHAT]` | In-depth test project analysis (read-only)                 |
-| `[NICHE]`         | Trace analysis, locator forensics, flakiness investigation |
-
-## Project Files
-
-| File                        | Description                                                                        |
-|-----------------------------|------------------------------------------------------------------------------------|
-| `qa-agent-system-prompt.md` | The complete agent — system prompt with all modes, BDD detection, tool definitions |
-| `README.md`                 | This file                                                                          |
+---
 
 ## FAQ
 
-**Q: Do I need to install anything to use QA-Bot?**
-A: No. QA-Bot is a system prompt, not software. You only need access to an LLM. Your test project's own dependencies (
-Playwright, Selenium, etc.) are separate — the agent can help you install those.
+**Which model works best?**
+For Agent Mode, use a capable model: `gpt-4o`, `claude-opus-4-5`, `grok-4`, or a large local model via Ollama (e.g. `llama3.1:70b`). Smaller models may not follow the `<tool>` tag format reliably.
 
-**Q: Which LLM works best?**
-A: Any model with strong tool-calling support. GPT-4o, Claude 3.5 Sonnet / Claude 4, and Grok 4 all work well. Smaller
-or local models may struggle with complex multi-step test tasks.
+**Does Agent Mode work with Ollama?**
+Yes. Select Ollama as the provider, pick a model, enable Agent Mode with `F2`, and type your task.
 
-**Q: Can I use this without tool-calling (e.g., plain ChatGPT)?**
-A: Partially. The agent will still provide test code, advice, and debugging help, but it won't be able to directly run
-tests, create files, or interact with your project. You'll need to copy-paste commands and code manually.
+**Where is my API token stored?**
+In `~/.config/qai/config.toml`. It is never sent anywhere except the provider's API endpoint.
 
-**Q: Does it work with my existing test project?**
-A: Yes. Point the agent at your project directory and describe what you need. It will read your existing tests, configs,
-and page objects to understand the context.
+**Can I use QA-Bot without the TUI?**
+Yes — use the CLI subcommands, or load `qa-agent-system-prompt.md` directly into any LLM chat interface.
 
-**Q: How does BDD detection work?**
-A: The agent scans your request and project files for BDD indicators (`.feature` files, Gherkin keywords like
-`Given/When/Then`, framework names like Cucumber or playwright-bdd). If detected, it automatically prioritizes
-Gherkin-style test generation.
+---
 
 ## License
 
