@@ -585,6 +585,96 @@ fn recover_plain_tool_grep_search() {
     );
 }
 
+// ── [TOOL_CALL] bracket format tests ─────────────────────────────────────────
+
+#[test]
+fn recover_bracketed_tool_call_basic() {
+    let text = r#"[TOOL_CALL]{"tool": "answer", "args": "Hi! I'm QA-Bot."}[/TOOL_CALL]"#;
+    assert_eq!(
+        try_recover_plain_tool(text),
+        Some(StepKind::ToolCall { name: "answer".to_string(), input: "Hi! I'm QA-Bot.".to_string() })
+    );
+}
+
+#[test]
+fn recover_bracketed_tool_call_name_field() {
+    let text = r#"[TOOL_CALL]{"name": "shell", "input": "ls -la"}[/TOOL_CALL]"#;
+    assert_eq!(
+        try_recover_plain_tool(text),
+        Some(StepKind::ToolCall { name: "shell".to_string(), input: "ls -la".to_string() })
+    );
+}
+
+#[test]
+fn recover_bracketed_tool_call_arguments_field() {
+    let text = r#"[TOOL_CALL]{"tool": "read_file", "arguments": "README.md"}[/TOOL_CALL]"#;
+    assert_eq!(
+        try_recover_plain_tool(text),
+        Some(StepKind::ToolCall { name: "read_file".to_string(), input: "README.md".to_string() })
+    );
+}
+
+#[test]
+fn recover_bracketed_tool_call_parameters_object() {
+    let text = r#"[TOOL_CALL]{"tool": "shell", "parameters": {"cmd": "ls"}}[/TOOL_CALL]"#;
+    let result = try_recover_plain_tool(text);
+    assert!(matches!(result, Some(StepKind::ToolCall { ref name, .. }) if name == "shell"), "got: {result:?}");
+}
+
+#[test]
+fn recover_bracketed_tool_call_unclosed() {
+    let text = r#"[TOOL_CALL]{"tool": "web_search", "args": "Rust async"}"#;
+    assert_eq!(
+        try_recover_plain_tool(text),
+        Some(StepKind::ToolCall { name: "web_search".to_string(), input: "Rust async".to_string() })
+    );
+}
+
+#[test]
+fn recover_bracketed_tool_call_double_bracket() {
+    let text = r#"[[TOOL_CALL]]{"tool": "shell", "args": "pwd"}[[/TOOL_CALL]]"#;
+    assert_eq!(
+        try_recover_plain_tool(text),
+        Some(StepKind::ToolCall { name: "shell".to_string(), input: "pwd".to_string() })
+    );
+}
+
+#[test]
+fn recover_bracketed_tool_call_angle_bracket() {
+    let text = r#"<TOOL_CALL>{"tool": "git_status", "args": ""}</TOOL_CALL>"#;
+    assert_eq!(
+        try_recover_plain_tool(text),
+        Some(StepKind::ToolCall { name: "git_status".to_string(), input: String::new() })
+    );
+}
+
+#[test]
+fn recover_bracketed_tool_call_function_name_field() {
+    let text = r#"[TOOL_CALL]{"function_name": "write_file", "args": "out.txt\nhello"}[/TOOL_CALL]"#;
+    assert_eq!(
+        try_recover_plain_tool(text),
+        Some(StepKind::ToolCall { name: "write_file".to_string(), input: "out.txt\nhello".to_string() })
+    );
+}
+
+#[test]
+fn recover_bracketed_tool_call_case_insensitive_marker() {
+    let text = r#"[tool_call]{"tool": "shell", "args": "echo hi"}[/tool_call]"#;
+    assert_eq!(
+        try_recover_plain_tool(text),
+        Some(StepKind::ToolCall { name: "shell".to_string(), input: "echo hi".to_string() })
+    );
+}
+
+#[test]
+fn recover_bracketed_tool_call_with_surrounding_text() {
+    let text = "Here is my tool call:\n[TOOL_CALL]{\"tool\": \"shell\", \"args\": \"ls\"}[/TOOL_CALL]\nDone.";
+    assert_eq!(
+        try_recover_plain_tool(text),
+        Some(StepKind::ToolCall { name: "shell".to_string(), input: "ls".to_string() })
+    );
+}
+
 // ── answer-as-tool fix tests ──────────────────────────────────────────────────
 
 #[tokio::test]

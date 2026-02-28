@@ -27,8 +27,4 @@ impl App {
         self.selected_provider() == Provider::Ollama
     }
 
-    /// Returns true if the current provider is Custom.
-    pub fn is_custom_provider(&self) -> bool {
-        self.selected_provider() == Provider::Custom
-    }
 }

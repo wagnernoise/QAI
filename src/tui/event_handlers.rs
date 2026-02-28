@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent::ReActAgent;
-use crate::tui::api::{fetch_ollama_models, stream_message, StreamRequest};
+use crate::tui::api::{fetch_ollama_models, fetch_github_models, stream_message, StreamRequest};
 use crate::tui::input::handle_text_input_key;
 use crate::tui::providers::Provider;
 use crate::tui::state_manager::StateManager;
@@ -197,9 +197,12 @@ pub async fn handle_chat_key(
         }
         KeyCode::Enter => match app.chat_focus {
             ChatFocus::ProviderList => {
-                // confirm provider; if Ollama fetch models
+                // confirm provider; if Ollama or GitHub Models, fetch models
                 if app.selected_provider() == Provider::Ollama {
                     fetch_ollama_models(app).await;
+                    app.chat_focus = ChatFocus::ModelList;
+                } else if app.selected_provider() == Provider::GitHubModels {
+                    fetch_github_models(app).await;
                     app.chat_focus = ChatFocus::ModelList;
                 } else {
                     app.chat_focus = ChatFocus::Message;
@@ -209,10 +212,22 @@ pub async fn handle_chat_key(
                 // confirm model selection, move to message
                 app.chat_focus = ChatFocus::Message;
             }
+            ChatFocus::Token => {
+                // For GitHub Models, pressing Enter on the token field fetches models
+                if app.selected_provider() == Provider::GitHubModels {
+                    fetch_github_models(app).await;
+                    app.chat_focus = ChatFocus::ModelList;
+                } else {
+                    app.chat_focus = ChatFocus::Message;
+                }
+            }
             ChatFocus::CustomUrl => {
                 // confirm custom URL; for Ollama, fetch models from the new server
                 if app.selected_provider() == Provider::Ollama {
                     fetch_ollama_models(app).await;
+                    app.chat_focus = ChatFocus::ModelList;
+                } else if app.selected_provider() == Provider::GitHubModels {
+                    fetch_github_models(app).await;
                     app.chat_focus = ChatFocus::ModelList;
                 } else {
                     app.chat_focus = ChatFocus::Token;

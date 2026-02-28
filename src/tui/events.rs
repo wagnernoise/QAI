@@ -15,7 +15,7 @@ use ratatui::{
 };
 use crate::tui::state::{App, Screen, ChatFocus, MENU_ITEMS};
 use crate::tui::providers::Provider;
-use crate::tui::api::{save_api_token, fetch_ollama_models, stream_message, StreamRequest};
+use crate::tui::api::{save_api_token, fetch_ollama_models, fetch_github_models, stream_message, StreamRequest};
 use crate::agent::ReActAgent;
 use crate::tui::draw::draw;
 use crate::tui::input::{TextInput, handle_text_input_key};
@@ -339,49 +339,56 @@ async fn handle_chat_key(
             };
         }
         KeyCode::Tab => {
-            let is_custom = app.selected_provider() == Provider::Custom;
             let is_ollama = app.selected_provider() == Provider::Ollama;
+            let is_github = app.selected_provider() == Provider::GitHubModels;
             app.chat_focus = match app.chat_focus {
                 ChatFocus::ProviderList => {
                     if is_ollama {
-                        // fetch models when entering model list
                         if app.ollama_models.is_empty() {
                             fetch_ollama_models(app).await;
                         }
                         ChatFocus::ModelList
-                    } else if is_custom {
+                    } else if is_github {
+                        ChatFocus::Token
+                    } else {
+                        ChatFocus::Token
+                    }
+                }
+                ChatFocus::ModelList => {
+                    if is_ollama {
                         ChatFocus::CustomUrl
                     } else {
                         ChatFocus::Token
                     }
                 }
-                ChatFocus::ModelList => ChatFocus::CustomUrl,
-                ChatFocus::Token => ChatFocus::Message,
+                ChatFocus::Token => {
+                    if is_github && !app.api_token.trim().is_empty() && app.ollama_models.is_empty() {
+                        fetch_github_models(app).await;
+                        ChatFocus::ModelList
+                    } else if is_github && !app.ollama_models.is_empty() {
+                        ChatFocus::ModelList
+                    } else {
+                        ChatFocus::Message
+                    }
+                }
                 ChatFocus::CustomUrl => ChatFocus::Token,
                 ChatFocus::Message => ChatFocus::Conversation,
                 ChatFocus::Conversation => ChatFocus::ProviderList,
             };
         }
         KeyCode::BackTab => {
-            let is_custom = app.selected_provider() == Provider::Custom;
             let is_ollama = app.selected_provider() == Provider::Ollama;
             app.chat_focus = match app.chat_focus {
                 ChatFocus::ProviderList => ChatFocus::Conversation,
                 ChatFocus::ModelList => ChatFocus::ProviderList,
                 ChatFocus::Token => {
-                    if is_ollama || is_custom {
+                    if is_ollama {
                         ChatFocus::CustomUrl
                     } else {
                         ChatFocus::ProviderList
                     }
                 }
-                ChatFocus::CustomUrl => {
-                    if is_ollama {
-                        ChatFocus::ModelList
-                    } else {
-                        ChatFocus::ProviderList
-                    }
-                }
+                ChatFocus::CustomUrl => ChatFocus::ModelList,
                 ChatFocus::Conversation => ChatFocus::Message,
                 ChatFocus::Message => ChatFocus::Token,
             };
@@ -475,9 +482,12 @@ async fn handle_chat_key(
         }
         KeyCode::Enter => match app.chat_focus {
             ChatFocus::ProviderList => {
-                // confirm provider; if Ollama fetch models
+                // confirm provider; if Ollama or GitHub Models, fetch models
                 if app.selected_provider() == Provider::Ollama {
                     fetch_ollama_models(app).await;
+                    app.chat_focus = ChatFocus::ModelList;
+                } else if app.selected_provider() == Provider::GitHubModels {
+                    fetch_github_models(app).await;
                     app.chat_focus = ChatFocus::ModelList;
                 } else {
                     app.chat_focus = ChatFocus::Message;
@@ -487,10 +497,22 @@ async fn handle_chat_key(
                 // confirm model selection, move to message
                 app.chat_focus = ChatFocus::Message;
             }
+            ChatFocus::Token => {
+                // For GitHub Models, pressing Enter on the token field fetches models
+                if app.selected_provider() == Provider::GitHubModels {
+                    fetch_github_models(app).await;
+                    app.chat_focus = ChatFocus::ModelList;
+                } else {
+                    app.chat_focus = ChatFocus::Message;
+                }
+            }
             ChatFocus::CustomUrl => {
                 // confirm custom URL; for Ollama, fetch models from the new server
                 if app.selected_provider() == Provider::Ollama {
                     fetch_ollama_models(app).await;
+                    app.chat_focus = ChatFocus::ModelList;
+                } else if app.selected_provider() == Provider::GitHubModels {
+                    fetch_github_models(app).await;
                     app.chat_focus = ChatFocus::ModelList;
                 } else {
                     app.chat_focus = ChatFocus::Token;

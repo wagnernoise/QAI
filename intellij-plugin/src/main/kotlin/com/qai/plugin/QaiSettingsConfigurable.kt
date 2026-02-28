@@ -6,6 +6,7 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPasswordField
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.JBUI
+import com.qai.plugin.QaiSettings.Companion.getInstance
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import javax.swing.JComboBox
@@ -22,7 +23,7 @@ class QaiSettingsConfigurable : Configurable {
     override fun getDisplayName(): String = "QAI"
 
     override fun createComponent(): JComponent {
-        val settings = QaiSettings.getInstance()
+        val settings = getInstance()
 
         apiTokenField = JBPasswordField().apply {
             text = settings.apiToken
@@ -64,7 +65,7 @@ class QaiSettingsConfigurable : Configurable {
     }
 
     override fun isModified(): Boolean {
-        val s = QaiSettings.getInstance()
+        val s = getInstance()
         return String(apiTokenField!!.password) != s.apiToken ||
             ollamaUrlField!!.text != s.ollamaUrl ||
             providerCombo!!.selectedItem as String != s.provider ||
@@ -72,7 +73,7 @@ class QaiSettingsConfigurable : Configurable {
     }
 
     override fun apply() {
-        val s = QaiSettings.getInstance()
+        val s = getInstance()
         s.apiToken = String(apiTokenField!!.password)
         s.ollamaUrl = ollamaUrlField!!.text
         s.provider = providerCombo!!.selectedItem as String
@@ -80,7 +81,7 @@ class QaiSettingsConfigurable : Configurable {
     }
 
     override fun reset() {
-        val s = QaiSettings.getInstance()
+        val s = getInstance()
         apiTokenField!!.text = s.apiToken
         ollamaUrlField!!.text = s.ollamaUrl
         providerCombo!!.selectedItem = s.provider

@@ -115,13 +115,8 @@ pub async fn stream_message(req: StreamRequest) -> Result<()> {
             Ok(())
         }
         _ => {
-            // OpenAI-compatible streaming (OpenAI, xAI, Ollama, Custom)
-            let url = if provider == Provider::Custom {
-                if custom_url.trim().is_empty() {
-                    anyhow::bail!("Custom endpoint URL is empty");
-                }
-                custom_url.trim().to_string()
-            } else if provider == Provider::Ollama && !custom_url.trim().is_empty() {
+            // OpenAI-compatible streaming (OpenAI, xAI, Ollama, GitHubModels)
+            let url = if provider == Provider::Ollama && !custom_url.trim().is_empty() {
                 // Custom Ollama server URL — append /api/chat if not already a full path
                 let base = custom_url.trim().trim_end_matches('/');
                 if base.ends_with("/api/chat") {
@@ -253,6 +248,62 @@ pub async fn fetch_ollama_models(app: &mut App) {
         },
         Err(e) => {
             app.status = format!("Cannot reach Ollama at {base}/api/tags: {e}");
+        }
+    }
+}
+
+pub async fn fetch_github_models(app: &mut App) {
+    use reqwest::Client;
+    use serde_json::Value;
+
+    let token = app.api_token.trim().to_string();
+    if token.is_empty() {
+        app.status = "Enter your GitHub token (fine-grained PAT with models:read scope) in the Token field, then press Enter.".to_string();
+        return;
+    }
+
+    app.status = "Fetching GitHub Models catalog…".to_string();
+    let client = Client::new();
+    match client
+        .get("https://api.github.com/catalog/models")
+        .bearer_auth(&token)
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .header("User-Agent", "qai-cli/1.0")
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let status = resp.status();
+            if !status.is_success() {
+                let body = resp.text().await.unwrap_or_default();
+                app.status = format!("GitHub API error {status}: {body}");
+                return;
+            }
+            match resp.json::<Value>().await {
+                Ok(json) => {
+                    let models: Vec<String> = json
+                        .as_array()
+                        .unwrap_or(&vec![])
+                        .iter()
+                        .filter_map(|m| m["id"].as_str().map(|s| s.to_string()))
+                        .collect();
+                    if models.is_empty() {
+                        app.status = "No GitHub Models found. Check your token has 'models:read' scope.".to_string();
+                    } else {
+                        app.status = format!("Found {} GitHub Model(s). Use ↑/↓ to select.", models.len());
+                        app.model_input = models[0].clone();
+                        app.model_list_state.select(Some(0));
+                        app.ollama_models = models;
+                    }
+                }
+                Err(e) => {
+                    app.status = format!("Failed to parse GitHub Models response: {e}");
+                }
+            }
+        }
+        Err(e) => {
+            app.status = format!("Cannot reach GitHub Models API: {e}");
         }
     }
 }

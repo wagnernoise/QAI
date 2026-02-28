@@ -60,15 +60,6 @@ fn provider_ollama_label() {
     assert_eq!(Provider::Ollama.label(), "Ollama (local)");
 }
 
-#[test]
-fn provider_zen_label() {
-    assert_eq!(Provider::Zen.label(), "Zen API");
-}
-
-#[test]
-fn provider_custom_label() {
-    assert_eq!(Provider::Custom.label(), "Custom endpoint");
-}
 
 // ── Provider::default_model ───────────────────────────────────────────────────
 
@@ -94,10 +85,6 @@ fn provider_ollama_default_model() {
     assert_eq!(Provider::Ollama.default_model(), "gemma3");
 }
 
-#[test]
-fn provider_zen_default_model() {
-    assert_eq!(Provider::Zen.default_model(), "anthropic/claude-sonnet-4-5");
-}
 
 // ── Provider::api_url ─────────────────────────────────────────────────────────
 
@@ -127,21 +114,12 @@ fn provider_ollama_api_url() {
     assert_eq!(Provider::Ollama.api_url(), "http://localhost:11434/api/chat");
 }
 
-#[test]
-fn provider_zen_api_url() {
-    assert_eq!(Provider::Zen.api_url(), "https://api.opencode.ai/v1/chat/completions");
-}
-
-#[test]
-fn provider_custom_api_url_is_empty() {
-    assert_eq!(Provider::Custom.api_url(), "");
-}
 
 // ── Provider::all ─────────────────────────────────────────────────────────────
 
 #[test]
-fn provider_all_returns_six_variants() {
-    assert_eq!(Provider::all().len(), 6);
+fn provider_all_returns_five_variants() {
+    assert_eq!(Provider::all().len(), 5);
 }
 
 #[test]
@@ -149,9 +127,38 @@ fn provider_all_contains_ollama() {
     assert!(Provider::all().iter().any(|p| p == &Provider::Ollama));
 }
 
+
 #[test]
-fn provider_all_contains_zen() {
-    assert!(Provider::all().iter().any(|p| p == &Provider::Zen));
+fn provider_all_contains_github_models() {
+    assert!(Provider::all().iter().any(|p| p == &Provider::GitHubModels));
+}
+
+#[test]
+fn provider_github_models_label() {
+    assert_eq!(Provider::GitHubModels.label(), "GitHub Models");
+}
+
+#[test]
+fn provider_github_models_default_model() {
+    assert_eq!(Provider::GitHubModels.default_model(), "openai/gpt-4o");
+}
+
+#[test]
+fn provider_github_models_api_url() {
+    assert_eq!(
+        Provider::GitHubModels.api_url(),
+        "https://models.github.com/v1/chat/completions"
+    );
+}
+
+#[test]
+fn provider_github_models_description_contains_github() {
+    assert!(Provider::GitHubModels.description().to_lowercase().contains("github"));
+}
+
+#[test]
+fn provider_github_models_description_mentions_pat() {
+    assert!(Provider::GitHubModels.description().contains("models:read"));
 }
 
 // ── App::new ──────────────────────────────────────────────────────────────────
@@ -506,23 +513,13 @@ fn app_selected_provider_index_3_is_ollama() {
 }
 
 #[test]
-fn app_selected_provider_index_4_is_zen() {
+fn app_selected_provider_index_4_is_github_models() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("prompt.md");
     fs::write(&path, "content").unwrap();
     let mut app = App::new(path);
     app.provider_index = 4;
-    assert_eq!(app.selected_provider(), Provider::Zen);
-}
-
-#[test]
-fn app_selected_provider_index_5_is_custom() {
-    let dir = TempDir::new().unwrap();
-    let path = dir.path().join("prompt.md");
-    fs::write(&path, "content").unwrap();
-    let mut app = App::new(path);
-    app.provider_index = 5;
-    assert_eq!(app.selected_provider(), Provider::Custom);
+    assert_eq!(app.selected_provider(), Provider::GitHubModels);
 }
 
 // ── App::active_model with provider changes ───────────────────────────────────
@@ -585,15 +582,6 @@ fn provider_xai_description_non_empty() {
     assert!(!Provider::XAI.description().is_empty());
 }
 
-#[test]
-fn provider_zen_description_non_empty() {
-    assert!(!Provider::Zen.description().is_empty());
-}
-
-#[test]
-fn provider_custom_description_non_empty() {
-    assert!(!Provider::Custom.description().is_empty());
-}
 
 #[test]
 fn all_providers_have_non_empty_descriptions() {
@@ -788,14 +776,6 @@ fn render_tools_screen_contains_ollama() {
     assert!(text.contains("Ollama"), "expected Ollama in Tools screen");
 }
 
-#[test]
-fn render_tools_screen_contains_zen() {
-    let (_dir, mut app) = make_app_with_content("prompt");
-    app.screen = Screen::Tools;
-    let buf = render_to_buffer(&mut app, 120, 30);
-    let text = buffer_text(&buf);
-    assert!(text.contains("Zen"), "expected Zen in Tools screen");
-}
 
 #[test]
 fn render_chat_screen_contains_conversation_panel() {

@@ -111,13 +111,22 @@ pub fn parse_step(text: &str) -> Option<StepKind> {
 ///   read_file\npath
 ///   shell\nls -la
 ///   tool_name\nparam=value\n...
+///   [TOOL_CALL]{"tool": "name", "args": "..."}[/TOOL_CALL]
+///   [TOOL_CALL]{"name": "name", "input": "..."}[/TOOL_CALL]
+///   [TOOL_CALL]{"tool": "name", "parameters": {...}}[/TOOL_CALL]
 pub fn try_recover_plain_tool(text: &str) -> Option<StepKind> {
     const KNOWN_TOOLS: &[&str] = &[
         "read_file", "write_file", "edit_file", "shell", "grep_search", "web_search",
-        "git_status", "git_diff", "git_add", "git_commit", "git_log",
+        "git_status", "git_diff", "git_add", "git_commit", "git_log", "answer",
     ];
 
     let trimmed = text.trim();
+
+    // Pattern 0: [TOOL_CALL]{...}[/TOOL_CALL] or [TOOL_CALL]{...} (unclosed)
+    // Also handles variations: [[TOOL_CALL]], <TOOL_CALL>, etc.
+    if let Some(step) = try_recover_bracketed_tool_call(trimmed) {
+        return Some(step);
+    }
 
     // Pattern 1: first non-empty line is a known tool name
     let mut lines = trimmed.lines();
@@ -153,6 +162,96 @@ pub fn try_recover_plain_tool(text: &str) -> Option<StepKind> {
     }
 
     None
+}
+
+/// Extract a tool call from bracket-style formats emitted by some models:
+///   [TOOL_CALL]{...}[/TOOL_CALL]
+///   [[TOOL_CALL]]{...}[[/TOOL_CALL]]
+///   <TOOL_CALL>{...}</TOOL_CALL>
+///   [TOOL_CALL]{...}   (unclosed)
+///
+/// The JSON object may use any of these field names:
+///   tool name  : "tool", "name", "function", "tool_name", "function_name"
+///   tool input : "args", "input", "arguments", "parameters", "content"
+fn try_recover_bracketed_tool_call(text: &str) -> Option<StepKind> {
+    // Locate the JSON object — find the first '{' after an opening marker
+    // We support several opening markers (case-insensitive search via to_uppercase)
+    let upper = text.to_uppercase();
+    let markers = ["[TOOL_CALL]", "[[TOOL_CALL]]", "<TOOL_CALL>", "[TOOL_USE]", "[[TOOL_USE]]"];
+    let json_start = markers.iter()
+        .filter_map(|m| upper.find(m).map(|pos| pos + m.len()))
+        .min()?;
+
+    // Find the first '{' at or after json_start
+    let brace_start = text[json_start..].find('{').map(|p| json_start + p)?;
+
+    // Find the matching closing '}' (handle nesting)
+    let json_str = extract_balanced_braces(&text[brace_start..])?;
+
+    // Parse the JSON
+    let v: serde_json::Value = serde_json::from_str(json_str).ok()?;
+
+    // Extract tool name from common field names
+    let name = ["tool", "name", "function", "tool_name", "function_name"]
+        .iter()
+        .find_map(|&k| v.get(k).and_then(|n| n.as_str()).map(|s| s.to_string()))?;
+
+    // Extract tool input from common field names
+    // "args" / "arguments" / "parameters" may be a string or an object
+    let input = ["args", "input", "arguments", "parameters", "content"]
+        .iter()
+        .find_map(|&k| {
+            v.get(k).map(|val| match val {
+                serde_json::Value::String(s) => s.clone(),
+                other => other.to_string(),
+            })
+        })
+        .unwrap_or_default();
+
+    Some(StepKind::ToolCall { name, input })
+}
+
+/// Walk `text` starting at the first `{` and return the slice that forms a
+/// balanced JSON object (including the surrounding braces).  Returns `None`
+/// if the braces are never balanced.
+fn extract_balanced_braces(text: &str) -> Option<&str> {
+    let mut depth = 0i32;
+    let mut in_string = false;
+    let mut escape_next = false;
+    let mut end = 0usize;
+
+    for (i, ch) in text.char_indices() {
+        if escape_next {
+            escape_next = false;
+            continue;
+        }
+        if in_string {
+            match ch {
+                '\\' => escape_next = true,
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+        match ch {
+            '"' => in_string = true,
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = i;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if depth == 0 && end > 0 {
+        Some(&text[..=end])
+    } else {
+        None
+    }
 }
 
 fn find_tag_start(text: &str, tag: &str) -> Option<usize> {
@@ -341,7 +440,10 @@ impl ReActAgent {
                         }
                     }
                     StepKind::ToolCall { name, input } => {
-                        let _ = tx.send(Some(format!("🔧 **Tool `{name}`:** `{}`\n", truncate(&input, 120))));
+                        // Don't display "answer" as a tool call — it's a final answer in disguise
+                        if name != "answer" {
+                            let _ = tx.send(Some(format!("🔧 **Tool `{name}`:** `{}`\n", truncate(&input, 120))));
+                        }
                         let observation = tools::dispatch(&name, &input)
                             .await
                             .unwrap_or_else(|e| format!("[error: {e}]"));
@@ -381,16 +483,10 @@ impl ReActAgent {
             .timeout(std::time::Duration::from_secs(1800))
             .build()?;
 
-        let url = if !self.custom_url.is_empty()
-            && (self.provider == Provider::Custom || self.provider == Provider::Ollama)
-        {
-            // For Ollama, append the chat endpoint if not already present
+        let url = if !self.custom_url.is_empty() && self.provider == Provider::Ollama {
+            // For Ollama with a custom server, append the chat endpoint if not already present
             let base = self.custom_url.trim_end_matches('/');
-            if self.provider == Provider::Ollama {
-                format!("{}/api/chat", base)
-            } else {
-                base.to_string()
-            }
+            format!("{}/api/chat", base)
         } else {
             self.provider.api_url().to_string()
         };
@@ -421,7 +517,7 @@ impl ReActAgent {
                     .await?
             }
             _ => {
-                // OpenAI-compatible (Ollama, OpenAI, xAI, Zen, Custom)
+                // OpenAI-compatible (Ollama, OpenAI, xAI, GitHubModels)
                 let mut msgs: Vec<serde_json::Value> =
                     vec![json!({ "role": "system", "content": system })];
                 for (role, content) in history {

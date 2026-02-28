@@ -3,9 +3,18 @@ node_modules/
 package-lock.json
 yarn.lock
 
+# Playwright
+playwright-report/
+test-results/
+playwright/.cache/
+cucumber-report.html
+
+# Screenshots
+*.png
+screenshots/
+
 # IDE
 .idea/
-*.iml
 .vscode/
 *.swp
 *.swo
@@ -14,19 +23,10 @@ yarn.lock
 .DS_Store
 Thumbs.db
 
-# Test results
-test-results/
-playwright-report/
-allure-results/
-allure-report/
-coverage/
+# Logs
 *.log
+npm-debug.log*
 
 # Environment
 .env
-.env.*
-
-# Build
-dist/
-build/
-out/
+.env.local

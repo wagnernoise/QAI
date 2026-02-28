@@ -49,21 +49,16 @@ impl StateManager {
 
     // Chat focus management
     pub fn cycle_chat_focus(&mut self, forward: bool) {
-        let is_custom = self.app.selected_provider() == Provider::Custom;
         let is_ollama = self.app.selected_provider() == Provider::Ollama;
 
         if forward {
             self.app.chat_focus = match self.app.chat_focus {
                 ChatFocus::ProviderList => {
-                    if is_ollama {
-                        ChatFocus::ModelList
-                    } else if is_custom {
-                        ChatFocus::CustomUrl
-                    } else {
-                        ChatFocus::Token
-                    }
+                    if is_ollama { ChatFocus::ModelList } else { ChatFocus::Token }
                 }
-                ChatFocus::ModelList => ChatFocus::CustomUrl,
+                ChatFocus::ModelList => {
+                    if is_ollama { ChatFocus::CustomUrl } else { ChatFocus::Token }
+                }
                 ChatFocus::Token => ChatFocus::Message,
                 ChatFocus::CustomUrl => ChatFocus::Token,
                 ChatFocus::Message => ChatFocus::Conversation,
@@ -74,19 +69,9 @@ impl StateManager {
                 ChatFocus::ProviderList => ChatFocus::Conversation,
                 ChatFocus::ModelList => ChatFocus::ProviderList,
                 ChatFocus::Token => {
-                    if is_ollama || is_custom {
-                        ChatFocus::CustomUrl
-                    } else {
-                        ChatFocus::ProviderList
-                    }
+                    if is_ollama { ChatFocus::CustomUrl } else { ChatFocus::ProviderList }
                 }
-                ChatFocus::CustomUrl => {
-                    if is_ollama {
-                        ChatFocus::ModelList
-                    } else {
-                        ChatFocus::ProviderList
-                    }
-                }
+                ChatFocus::CustomUrl => ChatFocus::ModelList,
                 ChatFocus::Conversation => ChatFocus::Message,
                 ChatFocus::Message => ChatFocus::Token,
             };
