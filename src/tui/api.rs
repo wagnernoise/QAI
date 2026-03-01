@@ -258,7 +258,7 @@ pub async fn fetch_github_models(app: &mut App) {
 
     let token = app.api_token.trim().to_string();
     if token.is_empty() {
-        app.status = "Enter your GitHub token (fine-grained PAT with models:read scope) in the Token field, then press Enter.".to_string();
+        app.status = "Enter your GitHub OAuth token in the Token field, then press Enter.".to_string();
         return;
     }
 
@@ -289,7 +289,7 @@ pub async fn fetch_github_models(app: &mut App) {
                         .filter_map(|m| m["id"].as_str().map(|s| s.to_string()))
                         .collect();
                     if models.is_empty() {
-                        app.status = "No GitHub Models found. Check your token has 'models:read' scope.".to_string();
+                        app.status = "No GitHub Models found. Check your GitHub OAuth token is valid.".to_string();
                     } else {
                         app.status = format!("Found {} GitHub Model(s). Use ↑/↓ to select.", models.len());
                         app.model_input = models[0].clone();

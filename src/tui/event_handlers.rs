@@ -280,14 +280,51 @@ pub async fn handle_chat_key(
             _ => {}
         },
         KeyCode::Char(c) => {
-            let ctrl_c = key.modifiers.contains(KeyModifiers::CONTROL) && c == 'c';
-            let cmd_c  = key.modifiers.contains(KeyModifiers::SUPER)   && c == 'c';
+            let ch = c.to_ascii_lowercase();
+            let ctrl_c = key.modifiers.contains(KeyModifiers::CONTROL) && ch == 'c';
+            let cmd_c  = key.modifiers.contains(KeyModifiers::SUPER)   && ch == 'c';
+            let ctrl_a = key.modifiers.contains(KeyModifiers::CONTROL) && ch == 'a';
+            let cmd_a  = key.modifiers.contains(KeyModifiers::SUPER)   && ch == 'a';
             // On macOS the standard copy binding is Cmd+C; on Windows/Linux it is Ctrl+C.
             let is_copy = if cfg!(target_os = "macos") { cmd_c } else { ctrl_c };
+            let is_select_all = if cfg!(target_os = "macos") { cmd_a } else { ctrl_a };
+
+            if is_select_all {
+                match app.chat_focus {
+                    ChatFocus::Message => {
+                        app.message_input.select_all();
+                        app.status = "Selected all message text".to_string();
+                    }
+                    ChatFocus::Token => {
+                        if let Ok(mut cb) = Clipboard::new() {
+                            let _ = cb.set_text(app.api_token.clone());
+                            app.status = "📋 Copied all token text".to_string();
+                        }
+                    }
+                    ChatFocus::CustomUrl => {
+                        if let Ok(mut cb) = Clipboard::new() {
+                            let _ = cb.set_text(app.custom_url.clone());
+                            app.status = "📋 Copied all URL text".to_string();
+                        }
+                    }
+                    _ => {}
+                }
+                return Ok(());
+            }
             // Ctrl+C always navigates back to menu on all platforms when no selection exists.
             if is_copy || ctrl_c {
                 // If there is an active selection, copy it; otherwise go back to menu (Ctrl+C only)
-                if let (Some(first_line), Some(last_line)) = (app.sel_start, app.sel_end) {
+                if app.chat_focus == ChatFocus::Message {
+                    if let Some((start, end)) = app.message_input.selection_range() {
+                        if let Ok(mut cb) = Clipboard::new() {
+                            let _ = cb.set_text(app.message_input.value[start..end].to_string());
+                            app.status = "📋 Copied to clipboard".to_string();
+                        }
+                    } else if let Ok(mut cb) = Clipboard::new() {
+                        let _ = cb.set_text(app.message_input.value.clone());
+                        app.status = "📋 Copied to clipboard".to_string();
+                    }
+                } else if let (Some(first_line), Some(last_line)) = (app.sel_start, app.sel_end) {
                     let (first_line, last_line) = if first_line <= last_line {
                         (first_line, last_line)
                     } else {
@@ -393,6 +430,19 @@ pub async fn handle_mouse_event(
                         app.input_scroll = (ratio * app.input_max_scroll_stored as f32).round() as u16;
                     }
                 }
+                if mouse.column >= ir.x + 1
+                    && mouse.column < ir.x + ir.width.saturating_sub(1)
+                    && mouse.row >= ir.y + 1
+                    && mouse.row < ir.y + ir.height.saturating_sub(1) {
+                    app.chat_focus = ChatFocus::Message;
+                    let visual_row = (mouse.row.saturating_sub(ir.y + 1) as usize)
+                        .saturating_add(app.input_scroll as usize);
+                    let visual_col = mouse.column.saturating_sub(ir.x + 1) as usize;
+                    let pos = app.message_input.byte_pos_at_visual(app.input_inner_width, visual_row, visual_col);
+                    app.message_input.set_cursor(pos, false);
+                    app.message_input.sel_anchor = Some(pos);
+                }
+
                 let r = app.conv_rect;
                 let scrollbar_col = r.x + r.width.saturating_sub(1);
                 if mouse.column == scrollbar_col && r.height > 2 {
@@ -437,6 +487,18 @@ pub async fn handle_mouse_event(
                         app.input_scroll = (ratio * app.input_max_scroll_stored as f32).round() as u16;
                     }
                 }
+                if app.message_input.sel_anchor.is_some()
+                    && mouse.column >= ir.x + 1
+                    && mouse.column < ir.x + ir.width.saturating_sub(1)
+                    && mouse.row >= ir.y + 1
+                    && mouse.row < ir.y + ir.height.saturating_sub(1) {
+                    let visual_row = (mouse.row.saturating_sub(ir.y + 1) as usize)
+                        .saturating_add(app.input_scroll as usize);
+                    let visual_col = mouse.column.saturating_sub(ir.x + 1) as usize;
+                    let pos = app.message_input.byte_pos_at_visual(app.input_inner_width, visual_row, visual_col);
+                    app.message_input.set_cursor(pos, true);
+                }
+
                 let r = app.conv_rect;
                 let scrollbar_col = r.x + r.width.saturating_sub(1);
                 if mouse.column == scrollbar_col && r.height > 2 {

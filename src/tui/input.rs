@@ -4,6 +4,7 @@
 pub struct TextInput {
     pub value: String,
     pub cursor: usize, // byte position
+    pub sel_anchor: Option<usize>,
 }
 
 impl TextInput {
@@ -18,11 +19,22 @@ impl TextInput {
     }
 
     pub fn insert_char(&mut self, c: char) {
+        if let Some((start, end)) = self.selection_range() {
+            self.value.replace_range(start..end, "");
+            self.cursor = start;
+            self.sel_anchor = None;
+        }
         self.value.insert(self.cursor, c);
         self.cursor += c.len_utf8();
     }
 
     pub fn delete_char_before(&mut self) {
+        if let Some((start, end)) = self.selection_range() {
+            self.value.replace_range(start..end, "");
+            self.cursor = start;
+            self.sel_anchor = None;
+            return;
+        }
         if self.cursor == 0 { return; }
         let prev = self.value[..self.cursor]
             .char_indices().next_back().map(|(i, _)| i).unwrap_or(0);
@@ -31,6 +43,12 @@ impl TextInput {
     }
 
     pub fn delete_char_after(&mut self) {
+        if let Some((start, end)) = self.selection_range() {
+            self.value.replace_range(start..end, "");
+            self.cursor = start;
+            self.sel_anchor = None;
+            return;
+        }
         if self.cursor >= self.value.len() { return; }
         self.value.remove(self.cursor);
     }
@@ -49,6 +67,37 @@ impl TextInput {
 
     pub fn move_home(&mut self) { self.cursor = 0; }
     pub fn move_end(&mut self) { self.cursor = self.value.len(); }
+
+    pub fn clear_selection(&mut self) { self.sel_anchor = None; }
+
+    pub fn selection_range(&self) -> Option<(usize, usize)> {
+        let anchor = self.sel_anchor?;
+        if anchor == self.cursor {
+            None
+        } else if anchor < self.cursor {
+            Some((anchor, self.cursor))
+        } else {
+            Some((self.cursor, anchor))
+        }
+    }
+
+    pub fn select_all(&mut self) {
+        self.sel_anchor = Some(0);
+        self.cursor = self.value.len();
+    }
+
+    pub fn set_cursor(&mut self, new_cursor: usize, keep_selection: bool) {
+        let new_cursor = new_cursor.min(self.value.len());
+        if keep_selection {
+            if self.sel_anchor.is_none() {
+                self.sel_anchor = Some(self.cursor);
+            }
+            self.cursor = new_cursor;
+        } else {
+            self.cursor = new_cursor;
+            self.sel_anchor = None;
+        }
+    }
 
     /// Move cursor up one visual row (accounting for word-wrap and newlines).
     pub fn move_up(&mut self, inner_width: usize) {
@@ -121,7 +170,11 @@ impl TextInput {
         best
     }
 
-    pub fn clear(&mut self) { self.value.clear(); self.cursor = 0; }
+    pub fn byte_pos_at_visual(&self, inner_width: usize, row: usize, col: usize) -> usize {
+        self.pos_at_row_col(inner_width, row, col)
+    }
+
+    pub fn clear(&mut self) { self.value.clear(); self.cursor = 0; self.sel_anchor = None; }
 
     /// Returns the wrapped row index of the cursor given an available inner width.
     /// Used to scroll the input box so the cursor is always visible.
@@ -164,16 +217,44 @@ impl TextInput {
 pub fn handle_text_input_key(input: &mut TextInput, key: crossterm::event::KeyEvent, inner_width: usize) {
     use crossterm::event::KeyCode;
     use crossterm::event::KeyModifiers;
+    let shift = key.modifiers.contains(KeyModifiers::SHIFT);
+
+    let mut apply_move = |f: fn(&mut TextInput)| {
+        let prev = input.cursor;
+        f(input);
+        let next = input.cursor;
+        input.set_cursor(next, shift);
+        if prev == next && !shift {
+            input.clear_selection();
+        }
+    };
+
     match key.code {
         KeyCode::Char(c) => input.insert_char(c),
         KeyCode::Backspace => input.delete_char_before(),
         KeyCode::Delete => input.delete_char_after(),
-        KeyCode::Left => input.move_left(),
-        KeyCode::Right => input.move_right(),
-        KeyCode::Home => input.move_home(),
-        KeyCode::End => input.move_end(),
-        KeyCode::Up => input.move_up(inner_width),
-        KeyCode::Down => input.move_down(inner_width),
+        KeyCode::Left => apply_move(TextInput::move_left),
+        KeyCode::Right => apply_move(TextInput::move_right),
+        KeyCode::Home => apply_move(TextInput::move_home),
+        KeyCode::End => apply_move(TextInput::move_end),
+        KeyCode::Up => {
+            let prev = input.cursor;
+            input.move_up(inner_width);
+            let next = input.cursor;
+            input.set_cursor(next, shift);
+            if prev == next && !shift {
+                input.clear_selection();
+            }
+        }
+        KeyCode::Down => {
+            let prev = input.cursor;
+            input.move_down(inner_width);
+            let next = input.cursor;
+            input.set_cursor(next, shift);
+            if prev == next && !shift {
+                input.clear_selection();
+            }
+        }
         KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => input.insert_newline(),
         _ => {}
     }

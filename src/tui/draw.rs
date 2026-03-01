@@ -378,7 +378,7 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &mut App) {
         let model_focused = app.chat_focus == ChatFocus::ModelList;
         if app.ollama_models.is_empty() {
             let hint = Paragraph::new(Span::styled(
-                if is_github { " Enter your GitHub token below, then press Enter to fetch models" } else { " Press Enter or Tab to fetch models" },
+                if is_github { " Enter your GitHub OAuth token below, then press Enter to fetch models" } else { " Press Enter or Tab to fetch models" },
                 Style::default().fg(Color::DarkGray),
             ))
             .block(
@@ -581,48 +581,68 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &mut App) {
         f.render_stateful_widget(scrollbar, right_rows[0], &mut scrollbar_state);
     }
 
-    // Message input with visible cursor
+    // Message input with visible cursor and selection highlight
     let msg_focused = app.chat_focus == ChatFocus::Message;
-    let (before, cursor_ch, after) = app.message_input.split_at_cursor();
     let cursor_style = if msg_focused {
         Style::default().add_modifier(Modifier::REVERSED)
     } else {
         Style::default().fg(Color::DarkGray)
     };
+    let selection_style = Style::default().bg(Color::Rgb(60, 80, 120)).fg(Color::White);
     // Build multi-line input: split text into logical lines, inserting cursor marker in the right line
     let input_inner_width = right_rows[1].width.saturating_sub(3) as usize; // -2 borders -1 scrollbar
     app.input_inner_width = input_inner_width.max(1);
     let input_inner_height = right_rows[1].height.saturating_sub(2) as usize;
 
-    // Build lines from the full text, placing cursor highlight at the correct position
-    let full_before = before.to_string();
-    let full_after = after.to_string();
-    let cursor_char = cursor_ch.to_string();
-
-    // Split before+cursor+after into logical lines (by '\n'), then each logical line
-    // further wraps into rendered rows of `input_inner_width` chars.
-    let combined = format!("{full_before}\x00{cursor_char}\x00{full_after}");
-    let logical_lines: Vec<&str> = combined.split('\n').collect();
     let mut input_lines: Vec<Line> = Vec::new();
-    for logical in &logical_lines {
-        // Find cursor marker positions
-        if let Some(c0) = logical.find('\x00') {
-            let rest = &logical[c0 + 1..];
-            if let Some(c1) = rest.find('\x00') {
-                let seg_before = &logical[..c0];
-                let seg_cursor = &rest[..c1];
-                let seg_after = &rest[c1 + 1..];
-                input_lines.push(Line::from(vec![
-                    Span::styled(seg_before.to_string(), Style::default().fg(Color::White)),
-                    Span::styled(seg_cursor.to_string(), cursor_style),
-                    Span::styled(seg_after.to_string(), Style::default().fg(Color::White)),
-                ]));
-            } else {
-                input_lines.push(Line::from(Span::styled(logical.replace('\x00', ""), Style::default().fg(Color::White))));
-            }
-        } else {
-            input_lines.push(Line::from(Span::styled(logical.to_string(), Style::default().fg(Color::White))));
+    let sel = app.message_input.selection_range();
+    let mut current_spans: Vec<Span> = Vec::new();
+    let mut buffer = String::new();
+    let mut buffer_style = Style::default().fg(Color::White);
+
+    let flush = |current_spans: &mut Vec<Span>, buffer: &mut String, style: Style| {
+        if !buffer.is_empty() {
+            current_spans.push(Span::styled(buffer.clone(), style));
+            buffer.clear();
         }
+    };
+
+    for (byte_pos, ch) in app.message_input.value.char_indices() {
+        let mut style = Style::default().fg(Color::White);
+        if let Some((start, end)) = sel {
+            if byte_pos >= start && byte_pos < end {
+                style = selection_style;
+            }
+        }
+        if byte_pos == app.message_input.cursor {
+            style = cursor_style;
+        }
+
+        if ch == '\n' {
+            flush(&mut current_spans, &mut buffer, buffer_style);
+            input_lines.push(Line::from(std::mem::take(&mut current_spans)));
+            buffer_style = Style::default().fg(Color::White);
+            continue;
+        }
+
+        if style != buffer_style {
+            flush(&mut current_spans, &mut buffer, buffer_style);
+            buffer_style = style;
+        }
+        buffer.push(ch);
+    }
+
+    if app.message_input.cursor >= app.message_input.value.len() {
+        flush(&mut current_spans, &mut buffer, buffer_style);
+        current_spans.push(Span::styled(" ", cursor_style));
+    } else {
+        flush(&mut current_spans, &mut buffer, buffer_style);
+    }
+
+    if input_lines.is_empty() && current_spans.is_empty() {
+        input_lines.push(Line::from(Span::styled(" ", cursor_style)));
+    } else {
+        input_lines.push(Line::from(current_spans));
     }
 
     // Count total rendered rows (accounting for word-wrap)
