@@ -7,6 +7,8 @@ use tokio_util::sync::CancellationToken;
 use crate::tui::state::App;
 use crate::tui::providers::Provider;
 
+const OLLAMA_REQUEST_TIMEOUT_SECS: u64 = 5;
+
 fn config_path() -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join("qai").join("config.toml"))
 }
@@ -56,7 +58,13 @@ pub async fn stream_message(req: StreamRequest) -> Result<()> {
         anyhow::bail!("API token is empty");
     }
 
-    let client = Client::new();
+    let client = if provider == Provider::Ollama {
+        Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(OLLAMA_REQUEST_TIMEOUT_SECS))
+            .build()?
+    } else {
+        Client::new()
+    };
 
     match provider {
         Provider::Anthropic => {
@@ -217,7 +225,16 @@ pub async fn fetch_ollama_models(app: &mut App) {
     let base = base_owned.as_str();
 
     app.status = "Fetching Ollama models…".to_string();
-    let client = Client::new();
+    let client = match Client::builder()
+        .timeout(std::time::Duration::from_secs(OLLAMA_REQUEST_TIMEOUT_SECS))
+        .build()
+    {
+        Ok(client) => client,
+        Err(e) => {
+            app.status = format!("Failed to initialize HTTP client: {e}");
+            return;
+        }
+    };
     match client
         .get(format!("{base}/api/tags"))
         .send()

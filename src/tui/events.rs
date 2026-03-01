@@ -25,6 +25,40 @@ use std::{io, path::PathBuf, time::Instant};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
+fn is_copy_shortcut(ch: char, modifiers: KeyModifiers, is_macos: bool) -> bool {
+    let ctrl_c = modifiers.contains(KeyModifiers::CONTROL) && ch == 'c';
+    let cmd_c = (modifiers.contains(KeyModifiers::SUPER)
+        || modifiers.contains(KeyModifiers::META))
+        && ch == 'c';
+
+    if is_macos {
+        cmd_c || ctrl_c
+    } else {
+        ctrl_c
+    }
+}
+
+fn is_select_all_shortcut(ch: char, modifiers: KeyModifiers, is_macos: bool) -> bool {
+    let ctrl_a = modifiers.contains(KeyModifiers::CONTROL) && ch == 'a';
+    let cmd_a = (modifiers.contains(KeyModifiers::SUPER)
+        || modifiers.contains(KeyModifiers::META))
+        && ch == 'a';
+
+    if is_macos {
+        cmd_a
+    } else {
+        ctrl_a
+    }
+}
+
+fn copy_to_clipboard(text: String) -> bool {
+    if let Ok(mut cb) = Clipboard::new() {
+        cb.set_text(text).is_ok()
+    } else {
+        false
+    }
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 pub async fn run(prompt_path: PathBuf) -> Result<()> {
@@ -594,13 +628,10 @@ async fn handle_chat_key(
         },
         KeyCode::Char(c) => {
             let ch = c.to_ascii_lowercase();
+            let is_macos = cfg!(target_os = "macos");
             let ctrl_c = key.modifiers.contains(KeyModifiers::CONTROL) && ch == 'c';
-            let cmd_c  = key.modifiers.contains(KeyModifiers::SUPER)   && ch == 'c';
-            let ctrl_a = key.modifiers.contains(KeyModifiers::CONTROL) && ch == 'a';
-            let cmd_a  = key.modifiers.contains(KeyModifiers::SUPER)   && ch == 'a';
-            // On macOS the standard copy binding is Cmd+C; on Windows/Linux it is Ctrl+C.
-            let is_copy = if cfg!(target_os = "macos") { cmd_c } else { ctrl_c };
-            let is_select_all = if cfg!(target_os = "macos") { cmd_a } else { ctrl_a };
+            let is_copy = is_copy_shortcut(ch, key.modifiers, is_macos);
+            let is_select_all = is_select_all_shortcut(ch, key.modifiers, is_macos);
 
             if is_select_all {
                 match app.chat_focus {
@@ -609,14 +640,12 @@ async fn handle_chat_key(
                         app.status = "Selected all message text".to_string();
                     }
                     ChatFocus::Token => {
-                        if let Ok(mut cb) = Clipboard::new() {
-                            let _ = cb.set_text(app.api_token.clone());
+                        if copy_to_clipboard(app.api_token.clone()) {
                             app.status = "📋 Copied all token text".to_string();
                         }
                     }
                     ChatFocus::CustomUrl => {
-                        if let Ok(mut cb) = Clipboard::new() {
-                            let _ = cb.set_text(app.custom_url.clone());
+                        if copy_to_clipboard(app.custom_url.clone()) {
                             app.status = "📋 Copied all URL text".to_string();
                         }
                     }
@@ -629,12 +658,10 @@ async fn handle_chat_key(
                 // If there is an active selection, copy it; otherwise go back to menu (Ctrl+C only)
                 if app.chat_focus == ChatFocus::Message {
                     if let Some((start, end)) = app.message_input.selection_range() {
-                        if let Ok(mut cb) = Clipboard::new() {
-                            let _ = cb.set_text(app.message_input.value[start..end].to_string());
+                        if copy_to_clipboard(app.message_input.value[start..end].to_string()) {
                             app.status = "📋 Copied to clipboard".to_string();
                         }
-                    } else if let Ok(mut cb) = Clipboard::new() {
-                        let _ = cb.set_text(app.message_input.value.clone());
+                    } else if copy_to_clipboard(app.message_input.value.clone()) {
                         app.status = "📋 Copied to clipboard".to_string();
                     }
                 } else if let (Some(first_line), Some(last_line)) = (app.sel_start, app.sel_end) {
@@ -673,8 +700,7 @@ async fn handle_chat_key(
                         .collect();
                     if !selected.is_empty() {
                         let text = selected.join("\n");
-                        if let Ok(mut cb) = Clipboard::new() {
-                            let _ = cb.set_text(text);
+                        if copy_to_clipboard(text) {
                             app.status = "📋 Copied to clipboard".to_string();
                         }
                     }

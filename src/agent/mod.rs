@@ -1,4 +1,5 @@
 pub mod tools;
+pub mod pr_review;
 
 use anyhow::Result;
 use reqwest::Client;
@@ -211,6 +212,15 @@ fn try_recover_bracketed_tool_call(text: &str) -> Option<StepKind> {
     Some(StepKind::ToolCall { name, input })
 }
 
+fn looks_like_tool_call_scaffold(text: &str) -> bool {
+    let upper = text.to_uppercase();
+    upper.contains("[TOOL_CALL")
+        || upper.contains("[[TOOL_CALL")
+        || upper.contains("<TOOL_CALL")
+        || upper.contains("[TOOL_USE")
+        || upper.contains("[[TOOL_USE")
+}
+
 /// Walk `text` starting at the first `{` and return the slice that forms a
 /// balanced JSON object (including the surrounding braces).  Returns `None`
 /// if the braces are never balanced.
@@ -391,6 +401,19 @@ impl ReActAgent {
                 if let Some(recovered) = try_recover_plain_tool(&llm_response) {
                     let _ = tx.send(Some("⚠️ *Model ignored XML format — auto-recovering tool call.*\n".to_string()));
                     steps.push(recovered);
+                } else if looks_like_tool_call_scaffold(&llm_response) {
+                    // Avoid leaking malformed tool-call scaffolding to the user.
+                    let _ = tx.send(Some(
+                        "⚠️ *Model emitted malformed tool-call syntax — retrying with strict XML format.*\n"
+                            .to_string(),
+                    ));
+                    history.push((
+                        "user".to_string(),
+                        "Your last response used malformed tool-call scaffolding (e.g. [TOOL_CALL]). \
+                         Retry now using valid XML only: start with <think> and end with either \
+                         <tool name=\"...\">...</tool> or <answer>...</answer>.".to_string(),
+                    ));
+                    continue;
                 } else {
                     // No tags and no recoverable tool call — show response and finish
                     let _ = tx.send(Some(llm_response.clone()));
@@ -561,5 +584,28 @@ fn truncate(s: &str, max: usize) -> String {
         s.to_string()
     } else {
         format!("{}…(truncated)", &s[..max])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::looks_like_tool_call_scaffold;
+
+    #[test]
+    fn detects_tool_call_scaffold_markers() {
+        assert!(looks_like_tool_call_scaffold(
+            r#"[TOOL_CALL] {tool => \"answer\", args {}}"#
+        ));
+        assert!(looks_like_tool_call_scaffold(
+            r#"[[tool_use]] {\"tool\":\"shell\"}"#
+        ));
+        assert!(looks_like_tool_call_scaffold(
+            r#"<tool_call>{\"tool\":\"read_file\"}</tool_call>"#
+        ));
+    }
+
+    #[test]
+    fn ignores_regular_text_without_tool_call_scaffold() {
+        assert!(!looks_like_tool_call_scaffold("normal assistant answer"));
     }
 }

@@ -52,7 +52,7 @@ impl Provider {
             Provider::Anthropic    => "Cloud · Requires API key · https://www.anthropic.com/",
             Provider::XAI          => "Cloud · Requires API key · https://x.ai/",
             Provider::Ollama       => "Local · No API key needed · https://ollama.com/",
-            Provider::GitHubModels => "Cloud · GitHub OAuth token · https://github.com/marketplace/models",
+            Provider::GitHubModels => "Cloud · GitHub OAuth token (models:read) · https://github.com/marketplace/models",
         }
     }
 }
